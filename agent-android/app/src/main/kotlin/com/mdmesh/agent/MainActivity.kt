@@ -20,9 +20,12 @@ import androidx.lifecycle.lifecycleScope
 import com.mdmesh.agent.service.CheckInService
 import com.mdmesh.core.config.ServerConfigStore
 import com.mdmesh.core.store.DeviceIdStore
+import com.mdmesh.core.sync.SyncStatus
 import com.mdmesh.policy.wifi.DpmHandle
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import java.text.DateFormat
+import java.util.Date
 import javax.inject.Inject
 
 /**
@@ -39,6 +42,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var deviceIdStore: DeviceIdStore
     @Inject lateinit var dpmHandle: DpmHandle
     @Inject lateinit var serverConfig: ServerConfigStore
+    @Inject lateinit var syncStatus: SyncStatus
 
     private lateinit var deviceIdValue: TextView
     private lateinit var kioskValue: TextView
@@ -85,8 +89,15 @@ class MainActivity : ComponentActivity() {
         kioskValue.text = if (isLocked()) "Locked (kiosk active)" else "Not locked"
         lifecycleScope.launch {
             val id = deviceIdStore.current()
-            deviceIdValue.text = if (id.isNullOrBlank()) "Enrolling…" else id
+            deviceIdValue.text = if (id.isNullOrBlank()) enrollingLabel() else id
         }
+    }
+
+    /** "Enrolling…" plus the last sync error (if any), so a stuck enrollment is diagnosable on-device. */
+    private fun enrollingLabel(): String {
+        val failure = syncStatus.lastError.value ?: return "Enrolling…"
+        val at = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(failure.atMillis))
+        return "Enrolling… (last error: ${failure.message} at $at)"
     }
 
     private fun isLocked(): Boolean {

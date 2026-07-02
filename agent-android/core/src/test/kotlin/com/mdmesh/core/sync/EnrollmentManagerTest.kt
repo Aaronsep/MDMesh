@@ -2,6 +2,9 @@ package com.mdmesh.core.sync
 
 import com.mdmesh.core.net.ResponseEnvelope
 import com.mdmesh.proto.AgentEnrollResponse
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -38,6 +41,21 @@ class EnrollmentManagerTest {
         assertEquals("server id must be persisted", "srv-1", identity.current())
         assertEquals("per-device secret must be persisted", "sek-1", identity.secret())
         assertEquals(1, identity.saveCount)
+    }
+
+    @Test
+    fun `concurrent callers share one enroll - the single-use token is posted exactly once`() = runTest {
+        val api = FakeMdmApi().apply { enrollGate = CompletableDeferred() }
+        val identity = FakeIdentity(initialId = null)
+        val manager = manager(identity, api)
+
+        val racers = (1..3).map { async { manager.ensureEnrolled() } }
+        testScheduler.advanceUntilIdle() // all racers now parked on the gate or the mutex
+        api.enrollGate!!.complete(Unit)
+
+        assertEquals(listOf("srv-1", "srv-1", "srv-1"), racers.awaitAll())
+        assertEquals("the single-use token must be POSTed once", 1, api.enrollRequests.size)
+        assertEquals("credentials must be persisted once", 1, identity.saveCount)
     }
 
     @Test

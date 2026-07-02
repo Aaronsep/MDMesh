@@ -1,5 +1,6 @@
 package com.mdmesh.core.transport
 
+import android.util.Log
 import com.mdmesh.core.config.ServerConfigStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +42,7 @@ class TransportManager @Inject constructor(
     @Volatile private var running = false
     @Volatile private var ws: WebSocket? = null
     @Volatile private var attempt = 0
+    @Volatile private var openedAt = 0L
 
     private var deviceId: String = ""
     private var secret: String = ""
@@ -73,19 +75,24 @@ class TransportManager @Inject constructor(
             Request.Builder().url(url).addHeader("Authorization", "Bearer $secret").build(),
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
-                    attempt = 0
+                    openedAt = System.currentTimeMillis()
                 }
 
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     val signal = WakeSignal.parse(text) ?: return
                     val cb = onWake ?: return
-                    scope.launch { runCatching { cb(signal) } }
+                    scope.launch {
+                        runCatching { cb(signal) }
+                            .onFailure { Log.w(TAG, "wake handler failed", it) }
+                    }
                 }
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     scheduleReconnect()
                 }
 
+                // A server-initiated clean close is a failure for backoff purposes too — otherwise
+                // an accept-then-close server drives a reconnect every second, forever.
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                     scheduleReconnect()
                 }
@@ -96,11 +103,20 @@ class TransportManager @Inject constructor(
     private fun scheduleReconnect() {
         if (!running) return
         ws = null
+        // Reset backoff only after a stable session (open ≥30s); resetting in onOpen let a
+        // connection that dies right after the handshake pin the retry delay at 1s.
+        if (openedAt != 0L && System.currentTimeMillis() - openedAt >= STABLE_SESSION_MS) attempt = 0
+        openedAt = 0L
         val backoffMs = minOf(60_000L, 1_000L * (1L shl minOf(attempt, 5)))
         attempt++
         scope.launch {
             delay(backoffMs)
             synchronized(this@TransportManager) { if (running) connect() }
         }
+    }
+
+    private companion object {
+        const val TAG = "TransportManager"
+        const val STABLE_SESSION_MS = 30_000L
     }
 }

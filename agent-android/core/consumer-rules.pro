@@ -1,7 +1,7 @@
 # Keep kotlinx.serialization generated serializers for protocol classes.
--keepclassmembers class com.lunacy.mdm.proto.** {
+-keepclassmembers class com.mdmesh.proto.** {
     *** Companion;
 }
--keepclasseswithmembers class com.lunacy.mdm.proto.** {
+-keepclasseswithmembers class com.mdmesh.proto.** {
     kotlinx.serialization.KSerializer serializer(...);
 }

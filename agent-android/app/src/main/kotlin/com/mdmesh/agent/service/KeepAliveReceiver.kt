@@ -3,6 +3,7 @@ package com.mdmesh.agent.service
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.mdmesh.core.sync.CheckInCoordinator
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -25,16 +26,22 @@ class KeepAliveReceiver : BroadcastReceiver() {
     @Inject lateinit var coordinator: CheckInCoordinator
 
     override fun onReceive(context: Context, intent: Intent) {
+        // Re-arm the next alarm BEFORE the check-in (FLAG_UPDATE_CURRENT makes it idempotent):
+        // if the check-in hangs or the process is killed mid-flight, the heartbeat chain survives.
+        WakeKeepAlive.schedule(context)
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 coordinator.runOnce()
-            } catch (_: Exception) {
-                // transient — the next heartbeat retries
+            } catch (e: Exception) {
+                Log.w(TAG, "heartbeat check-in failed", e) // transient — the next heartbeat retries
             } finally {
-                WakeKeepAlive.schedule(context)
                 pending.finish()
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "KeepAliveReceiver"
     }
 }

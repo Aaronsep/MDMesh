@@ -8,8 +8,13 @@ import com.mdmesh.proto.CommandEnvelope
 import com.mdmesh.proto.CommandResult
 import com.mdmesh.proto.CommandStatus
 import com.mdmesh.core.net.ResponseEnvelope
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
@@ -26,6 +31,7 @@ class CheckInCoordinatorTest {
         api: FakeMdmApi,
         pending: PendingResults,
         identityId: String = "dev-1",
+        syncStatus: SyncStatus = SyncStatus(),
     ): CheckInCoordinator {
         val identity = FakeIdentity(initialId = identityId, initialSecret = "sek-1")
         val eventSink = object : com.mdmesh.core.telemetry.EventSink {
@@ -44,6 +50,7 @@ class CheckInCoordinatorTest {
             stateSource = { null },
             telemetrySource = { null },
             eventSink = eventSink,
+            syncStatus = syncStatus,
         )
     }
 
@@ -99,5 +106,36 @@ class CheckInCoordinatorTest {
 
         // Acks must survive a failed delivery so they retry next cycle.
         assertEquals(1, pending.drain().size)
+    }
+
+    @Test
+    fun `concurrent runOnce calls are serialized, never interleaved`() = runTest {
+        val api = FakeMdmApi().apply { checkInGate = CompletableDeferred() }
+        val coordinator = coordinator(api, PendingResults())
+
+        val first = launch { coordinator.runOnce() }
+        val second = launch { coordinator.runOnce() }
+        testScheduler.advanceUntilIdle()
+
+        // With one cycle held in flight, the second caller must be parked on the mutex.
+        assertEquals("second cycle must wait for the in-flight one", 1, api.checkInRequests.size)
+        api.checkInGate!!.complete(Unit)
+        joinAll(first, second)
+        assertEquals(2, api.checkInRequests.size)
+    }
+
+    @Test
+    fun `records the failure in SyncStatus and clears it on the next success`() = runTest {
+        val api = FakeMdmApi().apply { checkInThrows = IOException("network down") }
+        val syncStatus = SyncStatus()
+        val coordinator = coordinator(api, PendingResults(), syncStatus = syncStatus)
+
+        runCatching { coordinator.runOnce() }
+        assertEquals("network down", syncStatus.lastError.value?.message)
+        assertNotNull(syncStatus.lastError.value?.atMillis)
+
+        api.checkInThrows = null
+        coordinator.runOnce()
+        assertNull(syncStatus.lastError.value)
     }
 }

@@ -9,7 +9,11 @@ import com.mdmesh.core.telemetry.EventSink
 import com.mdmesh.core.telemetry.TelemetrySource
 import com.mdmesh.proto.AgentCheckInRequest
 import com.mdmesh.proto.EventType
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * One full check-in cycle — the source of truth of the sync loop:
@@ -19,10 +23,15 @@ import javax.inject.Inject
  *  3. dispatch each returned (capability-gated) command;
  *  4. buffer the new results for delivery on the next cycle.
  *
+ * [runOnce] is single-flight process-wide (singleton + mutex): the periodic worker, the one-shot
+ * worker, the foreground service, the doze heartbeat and WebSocket wakes all race into it, and a
+ * fresh device firing several concurrent enrolls burns its single-use token.
+ *
  * Network/enroll failures bubble up so [CheckInWorker] applies WorkManager backoff; any
  * drained acks are restored to the buffer so they retry. Per-command failures never abort
  * the batch — they become `failed`/`unsupported`/`expired` results.
  */
+@Singleton
 class CheckInCoordinator @Inject constructor(
     private val api: MdmApi,
     private val enrollment: EnrollmentManager,
@@ -34,9 +43,22 @@ class CheckInCoordinator @Inject constructor(
     private val telemetrySource: TelemetrySource,
     private val eventSink: EventSink,
     private val hardwareIdSource: HardwareIdSource = HardwareIdSource { null },
+    private val syncStatus: SyncStatus = SyncStatus(),
 ) {
 
-    suspend fun runOnce() {
+    private val mutex = Mutex()
+
+    suspend fun runOnce(): Unit = mutex.withLock {
+        try {
+            cycle()
+            syncStatus.clear()
+        } catch (t: Throwable) {
+            if (t !is CancellationException) syncStatus.recordFailure(t)
+            throw t
+        }
+    }
+
+    private suspend fun cycle() {
         val deviceId = enrollment.ensureEnrolled()
         val authorization = "Bearer ${identity.secret().orEmpty()}"
         val matrix = capabilitySource.matrix(deviceId)

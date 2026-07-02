@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo
 import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
@@ -24,6 +25,7 @@ import com.mdmesh.core.transport.TransportManager
 import com.mdmesh.core.transport.WakeSignal
 import com.mdmesh.proto.EventType
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -53,6 +55,7 @@ class CheckInService : LifecycleService() {
     @Volatile private var interactiveUntil = 0L
     @Volatile private var deviceId: String? = null
     @Volatile private var secret: String? = null
+    @Volatile private var fastSyncJob: Job? = null
 
     @Suppress("DEPRECATION")
     private val powerReceiver = object : BroadcastReceiver() {
@@ -87,9 +90,13 @@ class CheckInService : LifecycleService() {
         if (!started) {
             started = true
             lifecycleScope.launch {
+                runCatching { coordinator.runOnce() } // initial sync
+                    .onFailure { Log.w(TAG, "initial check-in failed", it) }
+                // Read identity AFTER the initial sync: on a fresh device that runOnce just
+                // enrolled, so reading before it would leave blank credentials and no socket
+                // until the process restarts.
                 deviceId = identity.current()
                 secret = identity.secret()
-                runCatching { coordinator.runOnce() } // initial sync
                 reevaluateSocket()
             }
         }
@@ -100,7 +107,16 @@ class CheckInService : LifecycleService() {
     private fun reevaluateSocket() {
         val id = deviceId
         val sec = secret
-        if (id.isNullOrBlank() || sec.isNullOrBlank()) return
+        if (id.isNullOrBlank() || sec.isNullOrBlank()) {
+            // Enrollment may have completed elsewhere (worker/heartbeat) since we cached these —
+            // refresh once and re-evaluate if credentials appeared.
+            lifecycleScope.launch {
+                deviceId = identity.current()
+                secret = identity.secret()
+                if (!deviceId.isNullOrBlank() && !secret.isNullOrBlank()) reevaluateSocket()
+            }
+            return
+        }
         val hot = powerModeStore.isAlwaysOn() || isInteractive() || isCharging()
         if (hot) {
             transport.start(id, sec) { signal -> onWake(signal) }
@@ -113,17 +129,31 @@ class CheckInService : LifecycleService() {
         when (signal.kind) {
             "interactive" -> {
                 interactiveUntil = System.currentTimeMillis() + (signal.ttlSec ?: 120) * 1000L
-                fastSyncLoop()
+                startFastSync()
             }
             else -> runCatching { coordinator.runOnce() }
+                .onFailure { Log.w(TAG, "wake check-in failed", it) }
         }
         reevaluateSocket() // a device.powerMode command may have just changed the mode
     }
 
-    private suspend fun fastSyncLoop() {
-        while (System.currentTimeMillis() < interactiveUntil) {
-            runCatching { coordinator.runOnce() }
-            delay(2_500L)
+    /** Start the 2.5s fast-sync loop unless one is already running — repeat "interactive"
+     *  signals only extend [interactiveUntil], they must not stack extra loops. */
+    @Synchronized
+    private fun startFastSync() {
+        if (fastSyncJob?.isActive == true) return
+        fastSyncJob = lifecycleScope.launch {
+            var consecutiveFailures = 0
+            while (System.currentTimeMillis() < interactiveUntil) {
+                runCatching { coordinator.runOnce() }
+                    .onSuccess { consecutiveFailures = 0 }
+                    .onFailure {
+                        Log.w(TAG, "fast-sync check-in failed", it)
+                        // Server unreachable — stop burning battery; the periodic floor covers.
+                        if (++consecutiveFailures >= 3) return@launch
+                    }
+                delay(2_500L)
+            }
         }
     }
 
@@ -173,6 +203,7 @@ class CheckInService : LifecycleService() {
     }
 
     companion object {
+        private const val TAG = "CheckInService"
         private const val CHANNEL_ID = "mdm_checkin"
         private const val NOTIFICATION_ID = 1001
     }

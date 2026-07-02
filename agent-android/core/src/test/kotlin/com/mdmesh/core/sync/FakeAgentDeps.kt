@@ -13,6 +13,7 @@ import com.mdmesh.proto.AgentInfo
 import com.mdmesh.proto.Capabilities
 import com.mdmesh.proto.CapabilityMatrix
 import com.mdmesh.proto.DeviceInfo
+import kotlinx.coroutines.CompletableDeferred
 
 /** Shared fakes for the sync/enroll unit tests. Pure JVM — no Android. */
 
@@ -63,12 +64,17 @@ class FakeMdmApi : MdmApi {
         ResponseEnvelope(status = "OK", data = AgentCheckInResponse())
     var checkInThrows: Throwable? = null
 
+    /** When set, calls suspend until the gate completes — lets tests hold a request in flight. */
+    var enrollGate: CompletableDeferred<Unit>? = null
+    var checkInGate: CompletableDeferred<Unit>? = null
+
     val enrollRequests = mutableListOf<AgentEnrollRequest>()
     val checkInRequests = mutableListOf<AgentCheckInRequest>()
     val checkInAuth = mutableListOf<String>()
 
     override suspend fun enroll(request: AgentEnrollRequest): ResponseEnvelope<AgentEnrollResponse> {
         enrollRequests += request
+        enrollGate?.await()
         return enrollResponse
     }
 
@@ -78,6 +84,7 @@ class FakeMdmApi : MdmApi {
     ): ResponseEnvelope<AgentCheckInResponse> {
         checkInAuth += authorization
         checkInRequests += request
+        checkInGate?.await()
         checkInThrows?.let { throw it }
         return checkInResponse
     }

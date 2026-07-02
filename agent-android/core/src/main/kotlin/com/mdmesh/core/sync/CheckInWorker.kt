@@ -1,6 +1,7 @@
 package com.mdmesh.core.sync
 
 import android.content.Context
+import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
@@ -32,13 +33,30 @@ class CheckInWorker @AssistedInject constructor(
         coordinator.runOnce()
     }.fold(
         onSuccess = { Result.success() },
-        // Retry so WorkManager applies exponential backoff on transient failures.
-        onFailure = { Result.retry() },
+        onFailure = { t ->
+            Log.w(TAG, "check-in failed", t)
+            // Terminal server rejections (burned/expired token, enrollment off) can never succeed
+            // by retrying — fail so WorkManager doesn't hammer the enroll endpoint. Everything else
+            // (IO/timeout/5xx, and "no enrollment token available" — the token may be persisted
+            // milliseconds later by the compliance activity) retries with exponential backoff.
+            if (isTerminalEnrollmentRejection(t)) Result.failure() else Result.retry()
+        },
     )
 
+    private fun isTerminalEnrollmentRejection(t: Throwable): Boolean {
+        if (t !is EnrollmentException) return false
+        val message = t.message ?: return false
+        return TERMINAL_ENROLL_MARKERS.any { message.contains(it) }
+    }
+
     companion object {
+        private const val TAG = "CheckInWorker"
         private const val UNIQUE_NAME = "mdm-checkin"
         private const val INTERVAL_MINUTES = 15L
+
+        /** Server envelope messages (passed through [EnrollmentException]) that mean "never retry". */
+        private val TERMINAL_ENROLL_MARKERS =
+            listOf("token.used", "token.invalid", "token.expired", "enrollment.disabled")
 
         /** Enqueue the periodic check-in. Idempotent (KEEP existing schedule). */
         fun schedule(context: Context) {
@@ -75,9 +93,11 @@ class CheckInWorker @AssistedInject constructor(
                 )
                 .build()
 
+            // KEEP, not REPLACE: replacing cancels an in-flight run, which can kill an enroll
+            // AFTER the single-use token was POSTed but before credentials were persisted.
             WorkManager.getInstance(context).enqueueUniqueWork(
                 "$UNIQUE_NAME-now",
-                ExistingWorkPolicy.REPLACE,
+                ExistingWorkPolicy.KEEP,
                 request,
             )
         }

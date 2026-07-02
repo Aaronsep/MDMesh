@@ -7,15 +7,23 @@ import com.mdmesh.core.store.EnrollTokenProvider
 import com.mdmesh.core.telemetry.EventSink
 import com.mdmesh.proto.AgentEnrollRequest
 import com.mdmesh.proto.EventType
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Owns the one-time enrollment handshake. Idempotent: once a server-issued device id is
- * stored, [ensureEnrolled] returns it without contacting the server.
+ * stored, [ensureEnrolled] returns it without contacting the server. A singleton mutex
+ * makes the handshake single-flight — the enroll token is single-use, so concurrent
+ * callers must never each POST it.
  *
  * Enrollment posts the capability matrix + the single-use enroll token; the server
  * mints and returns the opaque device id, which becomes the agent's permanent identity.
  */
+@Singleton
 class EnrollmentManager @Inject constructor(
     private val api: MdmApi,
     private val identity: DeviceIdentity,
@@ -25,10 +33,18 @@ class EnrollmentManager @Inject constructor(
     private val hardwareIdSource: HardwareIdSource = HardwareIdSource { null },
 ) {
 
+    private val mutex = Mutex()
+
     /** Returns the server-issued device id, enrolling first if necessary. */
     suspend fun ensureEnrolled(): String {
         identity.current()?.takeIf { it.isNotBlank() }?.let { return it }
+        return mutex.withLock {
+            // Re-check inside the lock: a racing caller may have enrolled while we waited.
+            identity.current()?.takeIf { it.isNotBlank() } ?: enroll()
+        }
+    }
 
+    private suspend fun enroll(): String {
         val token = tokenProvider.token()?.takeIf { it.isNotBlank() }
             ?: throw EnrollmentException("no enrollment token available")
 
@@ -48,9 +64,13 @@ class EnrollmentManager @Inject constructor(
         if (!response.isOk || data == null) {
             throw EnrollmentException(response.message ?: "enrollment rejected")
         }
-        // Persist id + per-device secret together; the secret authenticates every check-in.
-        identity.saveCredentials(data.deviceId, data.deviceSecret)
-        runCatching { eventSink.record(EventType.ENROLLED) }
+        // The POST above already burned the single-use token server-side, so persistence must
+        // survive cancellation (e.g. WorkManager REPLACE/stop) or the credentials are lost forever.
+        withContext(NonCancellable) {
+            // Persist id + per-device secret together; the secret authenticates every check-in.
+            identity.saveCredentials(data.deviceId, data.deviceSecret)
+            runCatching { eventSink.record(EventType.ENROLLED) }
+        }
         return data.deviceId
     }
 }
