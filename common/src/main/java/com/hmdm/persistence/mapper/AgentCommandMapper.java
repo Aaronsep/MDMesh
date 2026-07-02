@@ -45,12 +45,6 @@ public interface AgentCommandMapper {
     @Select({"SELECT * FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND status = 'pending' ORDER BY id"})
     List<AgentCommand> listPending(@Param("deviceNumber") String deviceNumber);
 
-    @Update({"UPDATE agentCommand SET status = #{status}, deliveredAt = #{deliveredAt} WHERE id = #{id}"})
-    void markStatus(@Param("id") Integer id, @Param("status") String status, @Param("deliveredAt") Long deliveredAt);
-
-    @Update({"UPDATE agentCommand SET status = #{status}, detail = #{detail} WHERE id = #{id}"})
-    void markStatusDetail(@Param("id") Integer id, @Param("status") String status, @Param("detail") String detail);
-
     @Select({"SELECT * FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND id = #{id}"})
     AgentCommand findByDeviceAndId(@Param("deviceNumber") String deviceNumber, @Param("id") Integer id);
 
@@ -63,17 +57,30 @@ public interface AgentCommandMapper {
     int claimForDelivery(@Param("id") Integer id, @Param("deliveredAt") Long deliveredAt);
 
     /**
-     * Record a terminal result, but only if the command isn't already terminal — so the first real
-     * result wins and a late/duplicate ack can't overwrite a genuine done/failed (+ its detail).
+     * Record a terminal result, but only if the command isn't already GENUINELY terminal — first
+     * real result wins; a late/duplicate ack can't overwrite a done/failed (+ its detail). A
+     * device-reported result DOES overwrite 'expired': expiry is the server's guess, the device's
+     * report is the truth (a slow install may complete after the lazy expiry flipped it).
+     * Ownership rides the WHERE (id + deviceNumber) so no pre-SELECT is needed.
      */
     @Update({"UPDATE agentCommand SET status = #{status}, detail = #{detail}, completedAt = #{completedAt} " +
-            "WHERE id = #{id} AND status NOT IN ('done','failed','unsupported','expired')"})
-    void markResultWithTime(@Param("id") Integer id, @Param("status") String status,
-                            @Param("detail") String detail, @Param("completedAt") Long completedAt);
+            "WHERE id = #{id} AND deviceNumber = #{deviceNumber} " +
+            "AND status NOT IN ('done','failed','unsupported')"})
+    void markResultWithTime(@Param("deviceNumber") String deviceNumber, @Param("id") Integer id,
+                            @Param("status") String status, @Param("detail") String detail,
+                            @Param("completedAt") Long completedAt);
 
-    @Update({"UPDATE agentCommand SET status = 'expired', completedAt = #{cutoff} " +
-            "WHERE deviceNumber = #{deviceNumber} AND status IN ('pending','delivered') AND createdAt < #{cutoff}"})
-    void expireStale(@Param("deviceNumber") String deviceNumber, @Param("cutoff") long cutoff);
+    /**
+     * Two-tier lazy expiry: PENDING ages by creation time, but DELIVERED ages by delivery time
+     * with its own (longer) leash — the device already holds a delivered command, and expiring it
+     * by createdAt was killing slow in-flight installs at the 60-minute mark.
+     */
+    @Update({"UPDATE agentCommand SET status = 'expired', completedAt = #{now} " +
+            "WHERE deviceNumber = #{deviceNumber} AND (" +
+            "(status = 'pending' AND createdAt < #{pendingCutoff}) OR " +
+            "(status = 'delivered' AND deliveredAt IS NOT NULL AND deliveredAt < #{deliveredCutoff}))"})
+    void expireStale(@Param("deviceNumber") String deviceNumber, @Param("pendingCutoff") long pendingCutoff,
+                     @Param("deliveredCutoff") long deliveredCutoff, @Param("now") long now);
 
     @Select({"SELECT * FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND createdAt >= #{since} " +
             "ORDER BY id DESC LIMIT #{limit}"})

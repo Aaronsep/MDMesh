@@ -62,22 +62,14 @@ public class AgentCommandDAO {
         return mapper.listPending(deviceNumber);
     }
 
-    public void markStatus(Integer commandId, String status) {
-        markStatus(commandId, status, null);
-    }
-
-    public void markStatus(Integer commandId, String status, Long deliveredAt) {
-        mapper.markStatus(commandId, status, deliveredAt);
-    }
-
-    /** Record a result status plus the device-reported diagnostic detail. */
-    public void markResult(Integer commandId, String status, String detail) {
-        mapper.markStatusDetail(commandId, status, detail);
-    }
-
-    /** Record a result status + detail + the completion timestamp (epoch millis). */
-    public void markResultWithTime(Integer commandId, String status, String detail, Long completedAt) {
-        mapper.markResultWithTime(commandId, status, detail, completedAt);
+    /**
+     * Record a result status + detail + the completion timestamp (epoch millis). Ownership-scoped:
+     * the row is only touched when it belongs to {@code deviceNumber}, and a genuinely terminal
+     * done/failed/unsupported is never overwritten (device-reported results DO overwrite 'expired').
+     */
+    public void markResultWithTime(String deviceNumber, Integer commandId, String status,
+                                   String detail, Long completedAt) {
+        mapper.markResultWithTime(deviceNumber, commandId, status, detail, completedAt);
     }
 
     /** Atomically claim a pending command for delivery. Returns true iff this caller claimed it. */
@@ -85,9 +77,14 @@ public class AgentCommandDAO {
         return mapper.claimForDelivery(commandId, deliveredAt) == 1;
     }
 
-    /** Mark un-acted commands older than {@code olderThanMillis} as expired (lazy TTL). */
-    public void expireStale(String deviceNumber, long olderThanMillis) {
-        mapper.expireStale(deviceNumber, System.currentTimeMillis() - olderThanMillis);
+    /**
+     * Lazy TTL expiry. Pending commands age out {@code pendingTtlMillis} after creation;
+     * delivered ones get their own {@code deliveredTtlMillis} leash from delivery time (the
+     * device already holds them — see the mapper note).
+     */
+    public void expireStale(String deviceNumber, long pendingTtlMillis, long deliveredTtlMillis) {
+        long now = System.currentTimeMillis();
+        mapper.expireStale(deviceNumber, now - pendingTtlMillis, now - deliveredTtlMillis, now);
     }
 
     /** Command lifecycle history for a device, newest first, created at/after {@code since}. */
@@ -157,13 +154,10 @@ public class AgentCommandDAO {
     /**
      * Append a location fix to the device's trail, skipping it if it isn't newer than the last
      * stored fix — passive last-known reporting returns the same fix until the OS refreshes it, so
-     * de-duping on capturedAt keeps the trail meaningful without a distance calc.
+     * de-duping on capturedAt keeps the trail meaningful without a distance calc. The dedupe lives
+     * inside the INSERT itself (single statement), so concurrent check-ins can't double-insert.
      */
     public void recordLocation(com.hmdm.persistence.domain.DeviceLocation location) {
-        Long last = deviceMapper.getLastCapturedAt(location.getDeviceNumber());
-        if (last != null && location.getCapturedAt() <= last) {
-            return;
-        }
         location.setRecordedAt(System.currentTimeMillis());
         deviceMapper.insertLocation(location);
     }

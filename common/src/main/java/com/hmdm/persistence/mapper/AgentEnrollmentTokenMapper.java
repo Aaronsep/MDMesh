@@ -33,8 +33,8 @@ import org.apache.ibatis.annotations.Update;
  */
 public interface AgentEnrollmentTokenMapper {
 
-    @Insert({"INSERT INTO agentEnrollmentToken (token, customerId, used, createdAt, expiresAt) " +
-            "VALUES (#{token}, #{customerId}, #{used}, #{createdAt}, #{expiresAt})"})
+    @Insert({"INSERT INTO agentEnrollmentToken (token, customerId, used, createdAt, expiresAt, configurationId) " +
+            "VALUES (#{token}, #{customerId}, #{used}, #{createdAt}, #{expiresAt}, #{configurationId})"})
     @SelectKey(statement = "SELECT currval('agentenrollmenttoken_id_seq')", keyColumn = "id", keyProperty = "id",
             before = false, resultType = int.class)
     void insert(AgentEnrollmentToken token);
@@ -42,6 +42,19 @@ public interface AgentEnrollmentTokenMapper {
     @Select({"SELECT * FROM agentEnrollmentToken WHERE token = #{token}"})
     AgentEnrollmentToken findByToken(@Param("token") String token);
 
-    @Update({"UPDATE agentEnrollmentToken SET used = true WHERE id = #{id}"})
-    void markUsed(@Param("id") Integer id);
+    /**
+     * Atomically claim the single-use token: exactly one concurrent enroll gets rowcount 1; the
+     * rest get 0 (already used, or expired between the pre-check and here). This is the guard that
+     * keeps N concurrent enrolls with one token from creating N device rows.
+     */
+    @Update({"UPDATE agentEnrollmentToken SET used = true " +
+            "WHERE id = #{id} AND used = false AND (expiresAt IS NULL OR expiresAt > #{now})"})
+    int claim(@Param("id") Integer id, @Param("now") long now);
+
+    /**
+     * Release a claimed token after a SERVER-side enrollment failure (device creation rejected),
+     * so a fixable condition doesn't permanently burn the token.
+     */
+    @Update({"UPDATE agentEnrollmentToken SET used = false WHERE id = #{id}"})
+    void release(@Param("id") Integer id);
 }

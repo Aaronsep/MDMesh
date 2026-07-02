@@ -551,6 +551,45 @@ public class UnsecureDAO {
     }
 
 
+    /**
+     * Device creation for agent-v1 token enrollment. The device lands in the TOKEN's customer (not
+     * the single-customer default), and — when the token binds a configuration — in that
+     * configuration, skipping the legacy "create new devices" flag (an explicitly-bound config IS
+     * the admin's intent, mirroring the createOptions overload below). Returns null only when no
+     * config is bound AND the customer's settings disallow on-demand creation / name no default.
+     */
+    public Device createNewDeviceForToken(String deviceId, int customerId, Integer boundConfigurationId) {
+        Settings settings = getSettings(customerId);
+        Integer configurationId = boundConfigurationId;
+        if (configurationId == null) {
+            if (settings == null || !settings.isCreateNewDevices()) {
+                logger.warn("Creating new devices disabled by settings (customer {})", customerId);
+                return null;
+            }
+            configurationId = settings.getNewDeviceConfigurationId();
+            if (configurationId == null) {
+                logger.warn("No default configuration for new devices (customer {})", customerId);
+                return null;
+            }
+        }
+
+        Device newDevice = new Device();
+        newDevice.setCustomerId(customerId);
+        newDevice.setConfigurationId(configurationId);
+        Integer groupId = settings == null ? null : settings.getNewDeviceGroupId();
+        if (groupId != null) {
+            List<LookupItem> groups = new LinkedList<>();
+            groups.add(new LookupItem(groupId, ""));
+            newDevice.setGroups(groups);
+        }
+        newDevice.setNumber(deviceId);
+        newDevice.setLastUpdate(0L);
+        insertDevice(newDevice);
+        logger.info("New device {} added (customer {}, configuration {})", deviceId, customerId, configurationId);
+
+        return getDeviceByNumber(deviceId);
+    }
+
     public Device createNewDeviceOnDemand(String deviceId) {
 
         Settings settings = getSingleCustomerSettings();

@@ -47,7 +47,13 @@ public class AgentEnrollmentTokenDAO {
         return mapper.findByToken(token);
     }
 
-    public void markUsed(Integer id) {
-        mapper.markUsed(id);
+    /** Atomic single-use claim; true = this caller owns the token. */
+    public boolean claim(Integer id) {
+        return mapper.claim(id, System.currentTimeMillis()) == 1;
+    }
+
+    /** Un-burn a claimed token after a server-side enrollment failure. */
+    public void release(Integer id) {
+        mapper.release(id);
     }
 }

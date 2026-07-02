@@ -2806,4 +2806,29 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="22.07.02-token-configuration" author="lunacy" context="common">
+        <comment>agentEnrollmentToken.configurationId — a token can bind the enrolled device to a
+            configuration chosen at mint time (NULL keeps the legacy settings-default path).
+            ON DELETE SET NULL: deleting a configuration degrades outstanding tokens gracefully.</comment>
+        <sql>
+            ALTER TABLE agentEnrollmentToken
+                ADD COLUMN configurationId INT NULL REFERENCES configurations (id) ON DELETE SET NULL;
+        </sql>
+        <rollback>
+            ALTER TABLE agentEnrollmentToken DROP COLUMN configurationId;
+        </rollback>
+    </changeSet>
+
+    <changeSet id="22.07.02-rollout-single-active" author="lunacy" context="common">
+        <comment>At most ONE active rollout per customer, enforced by the database — the prior
+            check-then-insert allowed two concurrent creates to double-queue installs.</comment>
+        <sql>
+            CREATE UNIQUE INDEX uq_agentRollout_active ON agentRollout (customerId)
+                WHERE stage IN ('canary','fleet');
+        </sql>
+        <rollback>
+            DROP INDEX uq_agentRollout_active;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

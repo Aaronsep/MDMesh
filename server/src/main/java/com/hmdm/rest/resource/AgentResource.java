@@ -81,9 +81,16 @@ public class AgentResource {
     private static final Set<String> ALLOWED_RESULT_STATUS = new HashSet<>(Arrays.asList(
             "accepted", "done", "failed", "unsupported", "expired"));
 
+    // Ingestion caps: an authenticated device is still untrusted input. These bound what a single
+    // check-in (potentially every 5s in foreground mode) can write into the database.
+    private static final int MAX_EVENTS_PER_CHECKIN = 100;
+    private static final int MAX_EVENT_DETAIL_CHARS = 4000;
+    private static final int MAX_TELEMETRY_CHARS = 256 * 1024;
+
     private UnsecureDAO unsecureDAO;
     private AgentEnrollmentTokenDAO tokenDAO;
     private AgentCommandDAO commandDAO;
+    private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
 
     /**
      * <p>A constructor required by Swagger.</p>
@@ -94,10 +101,12 @@ public class AgentResource {
     @Inject
     public AgentResource(UnsecureDAO unsecureDAO,
                          AgentEnrollmentTokenDAO tokenDAO,
-                         AgentCommandDAO commandDAO) {
+                         AgentCommandDAO commandDAO,
+                         com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller) {
         this.unsecureDAO = unsecureDAO;
         this.tokenDAO = tokenDAO;
         this.commandDAO = commandDAO;
+        this.configAppInstaller = configAppInstaller;
     }
 
     // =================================================================================================================
@@ -115,47 +124,70 @@ public class AgentResource {
         if (token == null) {
             return Response.ERROR("error.agent.token.invalid");
         }
+        // Friendly pre-checks for good error messages; the CLAIM below is the actual guard.
         if (token.isUsed()) {
             return Response.ERROR("error.agent.token.used");
         }
         if (token.getExpiresAt() != null && token.getExpiresAt() < System.currentTimeMillis()) {
             return Response.ERROR("error.agent.token.expired");
         }
+        // Atomically consume the token BEFORE creating anything: with N concurrent enrolls
+        // (freshly-provisioned agents fire several racing check-in engines) exactly one wins;
+        // the blind mark-used-after-create used here before let every racer mint its own
+        // device row, leaving permanent ghost devices.
+        if (!tokenDAO.claim(token.getId())) {
+            return Response.ERROR("error.agent.token.used");
+        }
 
         String deviceId = UUID.randomUUID().toString();
-        Device device = unsecureDAO.createNewDeviceOnDemand(deviceId);
-        if (device == null) {
-            // The only null path is the "create new devices" settings flag being off — name it,
-            // so the failure is diagnosable from the agent/proxy side (a generic internal error
-            // here cost a debugging session: valid token, reachable server, no device row).
-            logger.warn("Agent enroll: on-demand device creation is disabled by settings (token {})", token.getId());
-            return Response.ERROR("error.agent.enrollment.disabled");
-        }
+        Device device = null;
+        try {
+            // The device lands in the token's customer, and in the token's configuration when the
+            // admin bound one at mint time (else the customer's settings default).
+            device = unsecureDAO.createNewDeviceForToken(
+                    deviceId, token.getCustomerId(), token.getConfigurationId());
+            if (device == null) {
+                // Named error (not a generic internal one) — this exact failure cost a debugging
+                // session: valid token, reachable server, no device row.
+                logger.warn("Agent enroll: on-demand device creation is disabled by settings (token {})", token.getId());
+                return Response.ERROR("error.agent.enrollment.disabled");
+            }
 
-        // Mint a per-device secret; persist only its SHA-256 hash. The plaintext is
-        // returned exactly once (below) and is required as a bearer token on /checkin.
-        String deviceSecret = UUID.randomUUID().toString().replace("-", "")
-                + UUID.randomUUID().toString().replace("-", "");
-        commandDAO.updateDeviceSecretHash(deviceId, CryptoUtil.getSHA256String(deviceSecret));
-        commandDAO.updateDeviceCapabilities(deviceId, capabilitiesJson(request.getCapabilities()));
-        // Record the agent's stable hardware id so duplicate enrollments of the same physical
-        // device can be detected/flagged in the admin UI (we still create a fresh row per enroll).
-        if (request.getHardwareId() != null && !request.getHardwareId().trim().isEmpty()) {
-            commandDAO.updateHardwareId(deviceId, request.getHardwareId().trim());
-        }
-        commandDAO.touchLastUpdate(deviceId);
-        tokenDAO.markUsed(token.getId());
+            // Mint a per-device secret; persist only its SHA-256 hash. The plaintext is
+            // returned exactly once (below) and is required as a bearer token on /checkin.
+            String deviceSecret = UUID.randomUUID().toString().replace("-", "")
+                    + UUID.randomUUID().toString().replace("-", "");
+            commandDAO.updateDeviceSecretHash(deviceId, CryptoUtil.getSHA256String(deviceSecret));
+            commandDAO.updateDeviceCapabilities(deviceId, capabilitiesJson(request.getCapabilities()));
+            // Record the agent's stable hardware id so duplicate enrollments of the same physical
+            // device can be detected/flagged in the admin UI (we still create a fresh row per enroll).
+            if (request.getHardwareId() != null && !request.getHardwareId().trim().isEmpty()) {
+                commandDAO.updateHardwareId(deviceId, request.getHardwareId().trim());
+            }
+            commandDAO.touchLastUpdate(deviceId);
 
-        String configurationName = null;
-        if (device.getConfigurationId() != null) {
-            Configuration configuration = unsecureDAO.getConfigurationById(device.getConfigurationId());
-            if (configuration != null) {
-                configurationName = configuration.getName();
+            String configurationName = null;
+            if (device.getConfigurationId() != null) {
+                Configuration configuration = unsecureDAO.getConfigurationById(device.getConfigurationId());
+                if (configuration != null) {
+                    configurationName = configuration.getName();
+                }
+            }
+
+            // Best-effort: queue the configuration's action=install apps so a config acts as a
+            // golden image. Failures are logged inside; enrollment itself must not fail on this.
+            int queuedApps = configAppInstaller.enqueueConfigApps(device);
+
+            logger.info("Agent enrolled device {} (configuration {}, {} config apps queued)",
+                    deviceId, device.getConfigurationId(), queuedApps);
+            return Response.OK(new AgentEnrollResponse(deviceId, configurationName, deviceSecret));
+        } finally {
+            // A server-side failure (settings rejection, SQL error) must not burn the single-use
+            // token — the agent retries and succeeds once the operator fixes the condition.
+            if (device == null) {
+                tokenDAO.release(token.getId());
             }
         }
-
-        logger.info("Agent enrolled device {}", deviceId);
-        return Response.OK(new AgentEnrollResponse(deviceId, configurationName, deviceSecret));
     }
 
     // =================================================================================================================
@@ -173,8 +205,10 @@ public class AgentResource {
 
         String deviceNumber = request.getDeviceId();
         Device device = unsecureDAO.getDeviceByNumber(deviceNumber);
+        // One indistinguishable error for unknown-device AND bad-secret: a distinguishable pair
+        // is an enumeration oracle for probing valid device numbers on a public endpoint.
         if (device == null) {
-            return Response.ERROR("error.agent.device.unknown");
+            return Response.ERROR("error.agent.unauthorized");
         }
 
         // Authenticate the device by its per-device secret BEFORE any state change.
@@ -192,9 +226,12 @@ public class AgentResource {
             commandDAO.updateHardwareId(deviceNumber, request.getHardwareId().trim());
         }
 
-        // Refresh the stored capability matrix (kept fresh every check-in).
+        // Refresh the stored capability matrix (kept fresh every check-in). Computed once here and
+        // reused for command gating below — no need to read back what we just wrote.
+        String capsJson = null;
         if (request.getCapabilities() != null) {
-            commandDAO.updateDeviceCapabilities(deviceNumber, capabilitiesJson(request.getCapabilities()));
+            capsJson = capabilitiesJson(request.getCapabilities());
+            commandDAO.updateDeviceCapabilities(deviceNumber, capsJson);
         }
 
         // Persist the latest device-state snapshot (powers the admin console).
@@ -215,7 +252,14 @@ public class AgentResource {
             if (tel != null && tel.isObject()) {
                 ((com.fasterxml.jackson.databind.node.ObjectNode) tel).put("publicIp", clientIp(httpRequest));
             }
-            row.setTelemetry(tel == null ? null : tel.toString());
+            // An authenticated device can still be hostile/buggy: cap the stored blob so a single
+            // client can't bloat device_state via the 5s foreground poll.
+            String telJson = tel == null ? null : tel.toString();
+            if (telJson != null && telJson.length() > MAX_TELEMETRY_CHARS) {
+                logger.warn("Device {} telemetry oversized ({} chars) — dropped", deviceNumber, telJson.length());
+                telJson = null;
+            }
+            row.setTelemetry(telJson);
             row.setUpdatedAt(System.currentTimeMillis());
             commandDAO.upsertState(row);
             // Mirror the Android version into the device row (infojson) so the device LIST — which
@@ -228,14 +272,25 @@ public class AgentResource {
             recordLocation(deviceNumber, tel);
         }
 
-        // Ingest buffered lifecycle events into the timeline.
+        // Ingest buffered lifecycle events into the timeline — capped, so one check-in can't
+        // flood device_event (each entry is an INSERT with unbounded TEXT detail otherwise).
         if (request.getEvents() != null) {
+            int ingested = 0;
             for (com.hmdm.rest.json.agent.AgentTelemetryEvent e : request.getEvents()) {
                 if (e == null || e.getType() == null) {
                     continue;
                 }
+                if (++ingested > MAX_EVENTS_PER_CHECKIN) {
+                    logger.warn("Device {} sent >{} events in one check-in — rest dropped",
+                            deviceNumber, MAX_EVENTS_PER_CHECKIN);
+                    break;
+                }
                 long ts = e.getTs() == null ? System.currentTimeMillis() : e.getTs();
-                commandDAO.insertEvent(deviceNumber, e.getType(), ts, e.getDetail());
+                String detail = e.getDetail();
+                if (detail != null && detail.length() > MAX_EVENT_DETAIL_CHARS) {
+                    detail = detail.substring(0, MAX_EVENT_DETAIL_CHARS);
+                }
+                commandDAO.insertEvent(deviceNumber, e.getType(), ts, detail);
             }
         }
 
@@ -253,22 +308,24 @@ public class AgentResource {
                 if (commandId == null) {
                     continue;
                 }
-                AgentCommand stored = commandDAO.findByDeviceAndId(deviceNumber, commandId);
-                if (stored != null) {
-                    // Store the device-reported detail + completion time, so remote actions are
-                    // observable from the server.
-                    commandDAO.markResultWithTime(commandId, result.getStatus(), result.getDetail(),
-                            System.currentTimeMillis());
-                }
+                // Ownership is enforced inside the UPDATE's WHERE (id + deviceNumber) — no
+                // per-result pre-SELECT needed on the hot path.
+                commandDAO.markResultWithTime(deviceNumber, commandId, result.getStatus(),
+                        result.getDetail(), System.currentTimeMillis());
             }
         }
 
-        // Lazily expire commands that were never acted on before delivering more. TTL = 60 min:
-        // long enough that the doze-proof heartbeat (~10 min) delivers to a parked device first.
-        commandDAO.expireStale(deviceNumber, 60L * 60L * 1000L);
+        // Lazily expire commands nobody acted on before delivering more. Undelivered (pending)
+        // commands age out by creation (60 min — the doze-proof heartbeat ~10 min reaches a parked
+        // device well before that). DELIVERED commands age by delivery time with a much longer
+        // leash (6 h): the device HAS them — a slow install on metered network must not be
+        // expired out from under its own genuine result.
+        commandDAO.expireStale(deviceNumber, 60L * 60L * 1000L, 6L * 60L * 60L * 1000L);
 
-        // Load pending commands and gate them by capability-token set membership.
-        Set<String> deviceTokens = AgentCapabilityTokens.flatten(commandDAO.getDeviceCapabilities(deviceNumber));
+        // Gate pending commands by capability-token set membership, reusing the matrix this very
+        // request carried (fall back to the stored copy only when the agent omitted it).
+        Set<String> deviceTokens = AgentCapabilityTokens.flatten(
+                capsJson != null ? capsJson : commandDAO.getDeviceCapabilities(deviceNumber));
         List<AgentCommand> pending = commandDAO.listPending(deviceNumber);
         List<com.hmdm.rest.json.agent.AgentCommand> commands = new ArrayList<>();
         long now = System.currentTimeMillis();
@@ -380,20 +437,42 @@ public class AgentResource {
         }
     }
 
-    /** The device's public IP as seen by the server, honoring the tunnel/proxy forwarding headers. */
+    /**
+     * The device's public IP as seen by the server. Forwarding headers are client-controllable,
+     * so they're honored ONLY when the direct peer is a local/private address — i.e. our own
+     * fronting proxy (Caddy/cloudflared on this host or LAN). A device reaching Tomcat directly
+     * cannot forge the recorded publicIp.
+     */
     private static String clientIp(javax.servlet.http.HttpServletRequest request) {
         if (request == null) {
             return null;
         }
-        String cf = request.getHeader("CF-Connecting-IP");
-        if (cf != null && !cf.trim().isEmpty()) {
-            return cf.trim();
+        String remote = request.getRemoteAddr();
+        if (isLocalOrPrivate(remote)) {
+            String cf = request.getHeader("CF-Connecting-IP");
+            if (cf != null && !cf.trim().isEmpty()) {
+                return cf.trim();
+            }
+            String xff = request.getHeader("X-Forwarded-For");
+            if (xff != null && !xff.trim().isEmpty()) {
+                // First hop is the original client.
+                return xff.split(",")[0].trim();
+            }
         }
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.trim().isEmpty()) {
-            // First hop is the original client.
-            return xff.split(",")[0].trim();
+        return remote;
+    }
+
+    /** Loopback / RFC1918 / link-local / IPv6 ULA — the address space our own proxy lives in. */
+    private static boolean isLocalOrPrivate(String addr) {
+        if (addr == null) {
+            return false;
         }
-        return request.getRemoteAddr();
+        try {
+            java.net.InetAddress a = java.net.InetAddress.getByName(addr);
+            return a.isLoopbackAddress() || a.isSiteLocalAddress() || a.isLinkLocalAddress()
+                    || (a.getAddress().length == 16 && (a.getAddress()[0] & 0xfe) == 0xfc);
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

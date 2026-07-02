@@ -40,6 +40,8 @@ public class AgentEnrollmentToken implements Serializable {
     private boolean used;
     private Long createdAt;
     private Long expiresAt;
+    /** Configuration the enrolled device is bound to; NULL = the customer's settings default. */
+    private Integer configurationId;
 
     public AgentEnrollmentToken() {
     }
@@ -82,6 +84,14 @@ public class AgentEnrollmentToken implements Serializable {
 
     public void setCreatedAt(Long createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Integer getConfigurationId() {
+        return configurationId;
+    }
+
+    public void setConfigurationId(Integer configurationId) {
+        this.configurationId = configurationId;
     }
 
     public Long getExpiresAt() {

@@ -68,13 +68,16 @@ public interface AgentDeviceMapper {
 
     // --- Location breadcrumb trail (device_location) ---
 
+    /**
+     * Append a fix ONLY when it's newer than everything stored — dedupe and insert in one
+     * statement, so two concurrent check-ins carrying the same fix can't both slip past a
+     * separate read-then-insert check.
+     */
     @Insert({"INSERT INTO device_location (deviceNumber, lat, lon, accuracy, provider, capturedAt, recordedAt) " +
-            "VALUES (#{deviceNumber}, #{lat}, #{lon}, #{accuracy}, #{provider}, #{capturedAt}, #{recordedAt})"})
+            "SELECT #{deviceNumber}, #{lat}, #{lon}, #{accuracy}, #{provider}, #{capturedAt}, #{recordedAt} " +
+            "WHERE NOT EXISTS (SELECT 1 FROM device_location " +
+            "WHERE deviceNumber = #{deviceNumber} AND capturedAt >= #{capturedAt})"})
     void insertLocation(DeviceLocation location);
-
-    /** Newest stored fix's capturedAt for a device, or null if none — used to de-dupe repeats. */
-    @Select({"SELECT MAX(capturedAt) FROM device_location WHERE deviceNumber = #{deviceNumber}"})
-    Long getLastCapturedAt(@Param("deviceNumber") String deviceNumber);
 
     @Select({"SELECT * FROM device_location WHERE deviceNumber = #{deviceNumber} AND capturedAt >= #{since} " +
             "ORDER BY capturedAt DESC LIMIT #{limit}"})

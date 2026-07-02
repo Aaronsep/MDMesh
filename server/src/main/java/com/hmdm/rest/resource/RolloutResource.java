@@ -149,7 +149,14 @@ public class RolloutResource {
         r.setStage("canary");
         r.setCreatedAt(now);
         r.setUpdatedAt(now);
-        rolloutDAO.insertRollout(r);
+        try {
+            rolloutDAO.insertRollout(r);
+        } catch (Exception e) {
+            // The partial unique index (one active rollout per customer) closes the check-then-act
+            // race above: two concurrent creates → the loser lands here, not on a duplicate rollout.
+            logger.info("Rollout create lost the single-active race for customer {}", cust);
+            return Response.ERROR("error.rollout.active");
+        }
 
         // Persist the canary set (only device numbers that actually belong to this customer).
         List<RolloutDeviceRow> rows = rolloutDAO.listCustomerDevices(cust);

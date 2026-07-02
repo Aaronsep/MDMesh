@@ -67,6 +67,7 @@ public class AgentAdminResource {
     private AgentCommandDAO commandDAO;
     private UnsecureDAO unsecureDAO;
     private AgentWakeHub wakeHub;
+    private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
 
     /**
      * <p>A constructor required by Swagger.</p>
@@ -78,35 +79,75 @@ public class AgentAdminResource {
     public AgentAdminResource(AgentEnrollmentTokenDAO tokenDAO,
                               AgentCommandDAO commandDAO,
                               UnsecureDAO unsecureDAO,
-                              AgentWakeHub wakeHub) {
+                              AgentWakeHub wakeHub,
+                              com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller) {
         this.tokenDAO = tokenDAO;
         this.commandDAO = commandDAO;
         this.unsecureDAO = unsecureDAO;
         this.wakeHub = wakeHub;
+        this.configAppInstaller = configAppInstaller;
     }
 
     // =================================================================================================================
-    @ApiOperation(value = "Mint enrollment token", notes = "Creates a single-use enrollment token for the current customer.")
+    @ApiOperation(value = "Mint enrollment token", notes = "Creates a single-use enrollment token for the current customer. "
+            + "An optional configurationId binds the enrolled device to that configuration.")
     @POST
     @Path("/token")
+    @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response mintToken() {
+    public Response mintToken(AgentEnrollmentToken body) {
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
         if (!customerId.isPresent()) {
             return Response.PERMISSION_DENIED();
+        }
+
+        // Optional config binding: the enrolled device lands in this configuration instead of the
+        // customer's settings default. Validate ownership — a token must not be able to place a
+        // device into another customer's configuration.
+        Integer configurationId = body == null ? null : body.getConfigurationId();
+        if (configurationId != null) {
+            com.hmdm.persistence.domain.Configuration cfg = unsecureDAO.getConfigurationById(configurationId);
+            if (cfg == null || cfg.getCustomerId() != customerId.get()) {
+                return Response.ERROR("error.configuration.not.found");
+            }
         }
 
         long now = System.currentTimeMillis();
         AgentEnrollmentToken token = new AgentEnrollmentToken();
         token.setToken(UUID.randomUUID().toString());
         token.setCustomerId(customerId.get());
+        token.setConfigurationId(configurationId);
         token.setUsed(false);
         token.setCreatedAt(now);
         token.setExpiresAt(now + DEFAULT_TOKEN_TTL_MILLIS);
         tokenDAO.insert(token);
 
-        logger.info("Agent enrollment token {} minted for customer {}", token.getId(), customerId.get());
+        logger.info("Agent enrollment token {} minted for customer {} (configuration {})",
+                token.getId(), customerId.get(), configurationId);
         return Response.OK(token);
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Sync configuration apps", notes = "Queues app.install commands for the device's "
+            + "configuration apps marked action=install. Use after enrolling an older device or editing a configuration.")
+    @POST
+    @Path("/devices/{deviceId}/syncApps")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response syncConfigApps(@PathParam("deviceId") String deviceId) {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        Device device = unsecureDAO.getDeviceByNumber(deviceId);
+        if (device == null) {
+            return Response.DEVICE_NOT_FOUND_ERROR();
+        }
+        if (device.getCustomerId() != customerId.get()) {
+            return Response.PERMISSION_DENIED();
+        }
+        int queued = configAppInstaller.enqueueConfigApps(device);
+        logger.info("Sync apps for device {}: {} app.install queued", deviceId, queued);
+        return Response.OK(java.util.Collections.singletonMap("queued", queued));
     }
 
     // =================================================================================================================
