@@ -381,8 +381,12 @@ ReadWritePaths=${BASE_DIR}
 WantedBy=multi-user.target
 UNIT
   systemctl daemon-reload >> "$LOGFILE" 2>&1
-  systemctl enable --now mdmesh-supervisor >> "$LOGFILE" 2>&1 \
-    && ok "supervisor running (systemd unit mdmesh-supervisor, loopback :9000)" \
+  # enable + RESTART (not enable --now, which is a no-op on an already-running unit): re-runs
+  # rewrite supervisor.env — notably CURRENT_VERSION — and a stale process would keep reporting
+  # the pre-upgrade version, leaving the console's "update available" banner stuck forever.
+  systemctl enable mdmesh-supervisor >> "$LOGFILE" 2>&1
+  systemctl restart mdmesh-supervisor >> "$LOGFILE" 2>&1 \
+    && ok "supervisor running v${CURRENT_VERSION:-0.0.0} (systemd unit mdmesh-supervisor, loopback :9000)" \
     || info "supervisor unit failed to start — check: journalctl -u mdmesh-supervisor"
 else
   info "no systemd — start the supervisor manually:"
