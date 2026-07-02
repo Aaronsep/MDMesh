@@ -81,9 +81,14 @@ export function UpdateBanner() {
         {s.channel ? <span className="ub-ch"> ({s.channel})</span> : null}
         {err ? <span className="ub-warn"> · {err}</span> : null}
       </span>
-      <button className="btn btn-sm" onClick={onClick} disabled={busy || !s.verified}>
-        {busy ? 'Starting…' : 'Update…'}
-      </button>
+      {s.applySupported !== false ? (
+        <button className="btn btn-sm" onClick={onClick} disabled={busy || !s.verified}>
+          {busy ? 'Starting…' : 'Update…'}
+        </button>
+      ) : (
+        // Source-built (native) deployments can't self-apply — Settings › Updates has the steps.
+        <a className="btn btn-sm" href="/settings">Details…</a>
+      )}
     </div>
   );
 }

@@ -10,10 +10,21 @@ const crypto = require('crypto');
 const { pickRelease, shapeStatus, imageTags, isTerminal, apkAsset, sha256Matches } = require('./lib');
 
 const PORT = +(process.env.SUPERVISOR_PORT || 9000);
+// Bind address. Docker keeps the default (all interfaces — the container has no published ports);
+// the native install sets 127.0.0.1 so only Tomcat's loopback passthrough can reach it.
+const BIND = process.env.SUPERVISOR_BIND || '0.0.0.0';
 const REPO = process.env.GITHUB_REPO || '';
 const CHANNEL = process.env.UPDATE_CHANNEL || 'stable';
 const PUB = process.env.MANIFEST_PUBKEY || '/app/minisign.pub';
 const TOKEN = process.env.GITHUB_TOKEN || '';
+// Whether this deployment can self-apply server/web updates. The apply/rollback machinery drives
+// docker compose, so native (source-built) installs set 0: status advertises it, the mutating
+// routes refuse, and unattended auto-apply never fires. Rollouts/APK mirroring are unaffected.
+const APPLY_SUPPORTED = process.env.APPLY_SUPPORTED !== '0';
+// When set, every verified APK is also atomically published to this path (the native install
+// points it at Tomcat's files dir so /files/agent.apk always serves the latest verified release;
+// Docker doesn't need it — Caddy routes /files/agent.apk to this process directly).
+const PUBLISH_APK_TO = process.env.PUBLISH_APK_TO || '';
 const APPLY_SCRIPT = path.join(__dirname, 'apply.sh');
 const ROLLBACK_SCRIPT = path.join(__dirname, 'rollback.sh');
 
@@ -42,7 +53,7 @@ function saveAuto() {
   catch (e) { console.log('[auto] persist failed:', String((e && e.message) || e)); }
 }
 
-let state = { current: currentVersion, latest: null, updateAvailable: false, verified: false, checkedAt: null, error: 'not polled yet', apply: null, auto: autoUpdate };
+let state = { current: currentVersion, latest: null, updateAvailable: false, verified: false, checkedAt: null, error: 'not polled yet', apply: null, auto: autoUpdate, applySupported: APPLY_SUPPORTED };
 
 async function ghJson(url) {
   const headers = { 'User-Agent': 'mdmesh-updater', Accept: 'application/vnd.github+json' };
@@ -91,6 +102,7 @@ async function ensureApk() {
       fs.writeFileSync(tmp, buf);
       fs.renameSync(tmp, dest); // atomic publish only after verification
       console.log('[apk] mirrored', dest);
+      publishApk(dest);
       return true;
     } catch (e) {
       console.log('[apk] error', String((e && e.message) || e));
@@ -101,12 +113,25 @@ async function ensureApk() {
   return apkFetching;
 }
 
+/** Copy a freshly-verified APK over the deployment's static hosting path (native installs). */
+function publishApk(src) {
+  if (!PUBLISH_APK_TO) return;
+  try {
+    const tmp = PUBLISH_APK_TO + '.tmp';
+    fs.mkdirSync(path.dirname(PUBLISH_APK_TO), { recursive: true });
+    fs.copyFileSync(src, tmp);
+    fs.renameSync(tmp, PUBLISH_APK_TO); // atomic — a device mid-download never sees a torn file
+    console.log('[apk] published', PUBLISH_APK_TO);
+  } catch (e) { console.log('[apk] publish failed:', String((e && e.message) || e)); }
+}
+
 /** Rebuild `state` from a poll result while preserving the live `apply`/`auto` view. */
 function setStatus(args) {
   state = {
     ...shapeStatus(args),
     apply,
     auto: autoUpdate,
+    applySupported: APPLY_SUPPORTED,
     apk: lastApk ? { version: lastApk.version, versionCode: lastApk.versionCode, sha256: lastApk.sha256, available: apkReady() } : null,
     release: lastRelease,
   };
@@ -115,6 +140,7 @@ function setStatus(args) {
 
 /** If unattended is on and a fresh verified update is available, apply it (once per version). */
 function maybeAutoApply() {
+  if (!APPLY_SUPPORTED) return;
   if (!autoUpdate || !state.updateAvailable) return;
   if (apply && !isTerminal(apply.phase)) return; // an apply is already running
   const { version } = imageTags(lastManifest);
@@ -294,6 +320,7 @@ http.createServer(async (req, res) => {
       return;
     }
     if (req.method === 'POST' && req.url.startsWith('/update/apply')) {
+      if (!APPLY_SUPPORTED) { json(res, 501, { error: 'self-update apply is not supported on this deployment — pull and re-run the installer' }); return; }
       if (!csrfOk(req)) { json(res, 403, { error: 'missing console header' }); return; }
       if (!(await authorizeApply(req))) { json(res, 401, { error: 'unauthorized' }); return; }
       const r = startApply('manual');
@@ -302,6 +329,7 @@ http.createServer(async (req, res) => {
       return;
     }
     if (req.method === 'POST' && req.url.startsWith('/update/auto')) {
+      if (!APPLY_SUPPORTED) { json(res, 501, { error: 'self-update apply is not supported on this deployment' }); return; }
       if (!csrfOk(req)) { json(res, 403, { error: 'missing console header' }); return; }
       if (!(await authorizeApply(req))) { json(res, 401, { error: 'unauthorized' }); return; }
       const body = await readJson(req);
@@ -312,6 +340,7 @@ http.createServer(async (req, res) => {
       return;
     }
     if (req.method === 'POST' && req.url.startsWith('/update/rollback')) {
+      if (!APPLY_SUPPORTED) { json(res, 501, { error: 'apply/rollback is not supported on this deployment' }); return; }
       if (!csrfOk(req)) { json(res, 403, { error: 'missing console header' }); return; }
       // Admin session OR the break-glass recovery token (for when the server is down).
       const authed = (await authorizeApply(req)) || validToken(req);
@@ -326,7 +355,7 @@ http.createServer(async (req, res) => {
   } catch (e) {
     json(res, 500, { error: String((e && e.message) || e) });
   }
-}).listen(PORT, () => console.log('supervisor on', PORT));
+}).listen(PORT, BIND, () => console.log('supervisor on', BIND + ':' + PORT));
 
 poll();
 setInterval(poll, (+(process.env.POLL_INTERVAL_HOURS || 6)) * 3600 * 1000);

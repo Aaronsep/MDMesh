@@ -205,21 +205,33 @@ export function SettingsPage() {
               <div className="set-row">
                 <span className="k">
                   Apply this release
-                  <small>Server + console update now; agent APK rolls out to devices.</small>
+                  <small>
+                    {upd.applySupported === false
+                      ? 'Agent APK rolls out to devices; server + console update via the installer.'
+                      : 'Server + console update now; agent APK rolls out to devices.'}
+                  </small>
                 </span>
                 <span className="v">
                   <div className="upd-actions">
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={() => void applyNow()}
-                      disabled={applying || !upd.verified}
-                    >
-                      {applying ? 'Starting…' : 'Update server + console'}
-                    </button>
+                    {upd.applySupported !== false && (
+                      <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() => void applyNow()}
+                        disabled={applying || !upd.verified}
+                      >
+                        {applying ? 'Starting…' : 'Update server + console'}
+                      </button>
+                    )}
                     <button className="btn btn-sm" onClick={scrollToRollout}>
                       Roll out agent to devices ↓
                     </button>
                   </div>
+                  {upd.applySupported === false && (
+                    <p className="au-note">
+                      This deployment was installed from source — update the server/console with
+                      <span className="mono"> git pull && sudo ./install/install-native.sh</span>.
+                    </p>
+                  )}
                   {!upd.verified && (
                     <p className="au-note" style={{ color: 'var(--err)' }}>
                       Release signature not verified — apply is disabled.
@@ -242,6 +254,7 @@ export function SettingsPage() {
                 </button>
               </span>
             </div>
+            {upd.applySupported !== false && (
             <div className="set-row auto-update-row">
               <span className="k">
                 Automatic updates
@@ -272,6 +285,7 @@ export function SettingsPage() {
                 </span>
               </span>
             </div>
+            )}
           </section>
         )}
 

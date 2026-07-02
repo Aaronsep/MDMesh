@@ -37,6 +37,18 @@
         <listener-class>com.hmdm.rest.AgentWakeBootstrap</listener-class>
     </listener>
 
+    <!-- Same-origin passthrough to the loopback updater supervisor (native installs; on Docker,
+         Caddy routes /update/* before Tomcat ever sees it, so this is inert there). -->
+    <servlet>
+        <servlet-name>update-proxy</servlet-name>
+        <servlet-class>com.hmdm.rest.UpdateProxyServlet</servlet-class>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>update-proxy</servlet-name>
+        <url-pattern>/update/*</url-pattern>
+    </servlet-mapping>
+
     <session-config>
         <session-timeout>1440</session-timeout>
     </session-config>

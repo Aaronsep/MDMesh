@@ -133,6 +133,9 @@ step "Installing dependencies"
 # publish for → "does not have a Release file") — the native install only needs base Debian packages.
 run "openjdk-17-jdk, postgresql, maven, nodejs, npm, curl" bash -c \
   'apt-get update -y || echo "(some apt sources failed to refresh — continuing)"; DEBIAN_FRONTEND=noninteractive apt-get install -y openjdk-17-jdk postgresql maven nodejs npm curl python3'
+# minisign verifies release-manifest signatures for the updater supervisor. Best-effort: without it
+# the supervisor still runs but reports releases as unverified (and never mirrors an APK).
+DEBIAN_FRONTEND=noninteractive apt-get install -y minisign >> "$LOGFILE" 2>&1 || info "minisign unavailable — updater will report releases as unverified"
 
 step "Selecting the Java 17 toolchain"
 # HERMETIC BUILD: pin JDK 17 and never fall back to the host default JDK. The server uses Lombok 1.18.20,
@@ -282,7 +285,7 @@ cp -a "$REPO"/web/dist/. "$CATALINA/webapps/ROOT/"   # index.html + assets at / 
 # SPA fallback (verified on Tomcat 9.0.89): !-f serves real files (assets) as-is; the negative lookahead
 # leaves the API paths (/rest,/files,/agent) alone; everything else → index.html so client-side routes
 # survive a reload. Paired with the RewriteValve declared in ROOT.xml above.
-printf 'RewriteCond %%{REQUEST_URI} !-f\nRewriteRule ^/(?!rest|files|agent)(.*)$ /index.html\n' \
+printf 'RewriteCond %%{REQUEST_URI} !-f\nRewriteRule ^/(?!rest|files|agent|update)(.*)$ /index.html\n' \
   > "$CATALINA/webapps/ROOT/WEB-INF/rewrite.config"
 mkdir -p "$BASE_DIR/files" "$BASE_DIR/plugins" "$CATALINA/conf/Catalina/localhost"
 cp install/log4j_template.xml "$BASE_DIR/log4j-mdmesh.xml"
@@ -315,6 +318,9 @@ cat > "$CATALINA/conf/Catalina/localhost/ROOT.xml" <<XML
     <Parameter name="mqtt.server.uri" value=""/>
     <Parameter name="mqtt.auth" value="0"/>
     <Parameter name="device.fast.search.chars" value="5"/>
+    <!-- Loopback updater supervisor; /update/* is passed through by UpdateProxyServlet so the
+         console's Updates + staged-rollout views are same-origin (no proxy config needed). -->
+    <Parameter name="supervisor.base" value="http://127.0.0.1:9000"/>
     <!-- TODO(parity): the Docker stack wires SMTP via env (smtp.host/port/ssl/starttls/username/
          password/from — see docker/entrypoint.sh); this installer writes no smtp.* Parameters yet,
          so password-reset emails stay disabled on native installs. Add them when SMTP is needed. -->
@@ -323,6 +329,65 @@ XML
 # ROOT.xml carries the DB password + hash.secret; umask should already yield 0600, but be explicit.
 chmod 600 "$CATALINA/conf/Catalina/localhost/ROOT.xml"
 ok "server + console deployed (console at /, API at /rest); ROOT.xml written"
+
+step "Updater supervisor (release polling + verified agent-APK mirror)"
+# The same supervisor the Docker stack runs, as a systemd unit on loopback :9000. It polls GitHub
+# Releases, minisign-verifies the manifest, keeps /files/agent.apk fresh (verified releases only)
+# and powers Settings→Updates + staged agent rollouts in the console (via the /update/* passthrough
+# servlet). APPLY_SUPPORTED=0: native installs update server/console by re-running this installer,
+# so the self-apply/rollback routes are disabled — the console shows the manual steps instead.
+SUP_DIR="$BASE_DIR/supervisor"
+mkdir -p "$SUP_DIR"
+cp "$REPO"/supervisor/server.js "$REPO"/supervisor/lib.js "$REPO"/supervisor/recovery.html "$SUP_DIR/"
+cp "$REPO"/release/minisign.pub "$SUP_DIR/minisign.pub"
+# The running version: the checkout's latest release tag (source installs track the repo). The
+# supervisor compares it against GitHub's latest to decide "update available".
+CURRENT_VERSION=$(git -C "$REPO" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)
+cat > "$BASE_DIR/supervisor.env" <<ENV
+SUPERVISOR_PORT=9000
+SUPERVISOR_BIND=127.0.0.1
+GITHUB_REPO=${GITHUB_REPO}
+GITHUB_TOKEN=${GITHUB_TOKEN:-}
+UPDATE_CHANNEL=stable
+POLL_INTERVAL_HOURS=6
+CURRENT_VERSION=${CURRENT_VERSION:-0.0.0}
+MANIFEST_PUBKEY=${SUP_DIR}/minisign.pub
+APK_CACHE_DIR=${SUP_DIR}/apk
+AUTO_FILE=${SUP_DIR}/auto.json
+RECOVERY_TOKEN_FILE=${SUP_DIR}/recovery.token
+PUBLISH_APK_TO=${BASE_DIR}/files/agent.apk
+SERVER_BASE=http://127.0.0.1:${HTTP_PORT}
+APPLY_SUPPORTED=0
+ENV
+chmod 600 "$BASE_DIR/supervisor.env"
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+  cat > /etc/systemd/system/mdmesh-supervisor.service <<UNIT
+[Unit]
+Description=MDMesh updater supervisor (release polling + verified agent-APK mirror)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=${BASE_DIR}/supervisor.env
+ExecStart=$(command -v node) ${SUP_DIR}/server.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=${BASE_DIR}
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  systemctl daemon-reload >> "$LOGFILE" 2>&1
+  systemctl enable --now mdmesh-supervisor >> "$LOGFILE" 2>&1 \
+    && ok "supervisor running (systemd unit mdmesh-supervisor, loopback :9000)" \
+    || info "supervisor unit failed to start — check: journalctl -u mdmesh-supervisor"
+else
+  info "no systemd — start the supervisor manually:"
+  info "  (set -a; . ${BASE_DIR}/supervisor.env; node ${SUP_DIR}/server.js &)"
+fi
 
 step "Starting the server"
 # Runs on the same pinned JDK 17 (JAVA_HOME exported above), matching the Docker tomcat:9.0-jdk17 image.
@@ -416,5 +481,7 @@ else
 fi
 printf '  %sTomcat%s         %s (serving on :%s — front it with your TLS reverse proxy)\n' "$c_dim" "$c_reset" "$CATALINA" "$HTTP_PORT"
 printf '  %sLocal URL%s      http://localhost:%s/\n' "$c_dim" "$c_reset" "$HTTP_PORT"
+printf '  %sUpdater%s        Settings -> Updates in the console (supervisor on loopback :9000; recovery page: curl 127.0.0.1:9000)\n' "$c_dim" "$c_reset"
+printf '  %sWebSockets%s     your TLS proxy MUST forward WebSocket upgrades for /agent/ws (instant commands; otherwise ~10 min polling)\n' "$c_dim" "$c_reset"
 printf '\n  %sNotes: install '\''aapt'\'' for full APK parsing; add a systemd unit to keep Tomcat running.%s\n' "$c_dim" "$c_reset"
 printf '  %sInstall log: %s%s\n\n' "$c_dim" "$LOGFILE" "$c_reset"
