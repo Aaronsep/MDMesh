@@ -30,6 +30,7 @@ class AdminReceiver : DeviceAdminReceiver() {
         // Admin (and, when provisioned this way, Device Owner) is now active.
         setStableOrganizationId(context)
         grantLocationAccess(context)
+        protectAgentProcess(context)
         CheckInWorker.schedule(context)
     }
 
@@ -39,6 +40,7 @@ class AdminReceiver : DeviceAdminReceiver() {
         // is populated before the first check-in reports the hardware id (see HardwareIdCollector).
         setStableOrganizationId(context)
         grantLocationAccess(context)
+        protectAgentProcess(context)
         // Capture the server URL from the QR bundle BEFORE any check-in, so one prebuilt APK can
         // serve any deployment (it falls back to the baked URL only when absent — dev/ADB).
         ServerConfigStore(context.applicationContext).save(extrasString(intent, EXTRA_SERVER_URL))
@@ -123,6 +125,22 @@ class AdminReceiver : DeviceAdminReceiver() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 runCatching { dpm.setLocationEnabled(admin, true) }
             }
+        }
+    }
+
+    /**
+     * As Device Owner, exempt the agent itself from user/OEM "app control": force-stop, and the
+     * background restrictions OEM battery managers (notably Samsung's app sleep) apply to unused
+     * apps. A force-stopped app receives NO broadcasts — not even BOOT_COMPLETED — which severs
+     * management permanently until someone taps the app. API 30+; idempotent.
+     */
+    private fun protectAgentProcess(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        runCatching {
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+                ?: return
+            if (!dpm.isDeviceOwnerApp(context.packageName)) return
+            dpm.setUserControlDisabledPackages(componentName(context), listOf(context.packageName))
         }
     }
 

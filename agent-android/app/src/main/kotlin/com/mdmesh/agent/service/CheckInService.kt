@@ -56,6 +56,10 @@ class CheckInService : LifecycleService() {
     @Volatile private var deviceId: String? = null
     @Volatile private var secret: String? = null
     @Volatile private var fastSyncJob: Job? = null
+    // Reachability grace: hold the socket for a window after service (re)start even on idle
+    // battery, so a device that just booted / self-updated is instantly commandable — a reboot
+    // usually means an operator is acting on it. After the window, adaptive gating resumes.
+    @Volatile private var graceUntil = 0L
 
     @Suppress("DEPRECATION")
     private val powerReceiver = object : BroadcastReceiver() {
@@ -89,6 +93,11 @@ class CheckInService : LifecycleService() {
         startAsForeground()
         if (!started) {
             started = true
+            graceUntil = System.currentTimeMillis() + REACHABILITY_GRACE_MS
+            lifecycleScope.launch {
+                delay(REACHABILITY_GRACE_MS + 1_000L)
+                reevaluateSocket() // drop back to adaptive gating once the grace window lapses
+            }
             lifecycleScope.launch {
                 runCatching { coordinator.runOnce() } // initial sync
                     .onFailure { Log.w(TAG, "initial check-in failed", it) }
@@ -118,6 +127,7 @@ class CheckInService : LifecycleService() {
             return
         }
         val hot = powerModeStore.isAlwaysOn() || isInteractive() || isCharging()
+                || System.currentTimeMillis() < graceUntil
         if (hot) {
             transport.start(id, sec) { signal -> onWake(signal) }
         } else {
@@ -181,7 +191,11 @@ class CheckInService : LifecycleService() {
             .setOngoing(true)
             .build()
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        // specialUse on 34+ (allowed from BOOT_COMPLETED, unlike dataSync on Android 15);
+        // dataSync on 29..33 where specialUse doesn't exist and boot starts are unrestricted.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
             startForeground(NOTIFICATION_ID, notification)
@@ -206,5 +220,8 @@ class CheckInService : LifecycleService() {
         private const val TAG = "CheckInService"
         private const val CHANNEL_ID = "mdm_checkin"
         private const val NOTIFICATION_ID = 1001
+
+        /** Post-(re)start window during which the socket is held regardless of power mode. */
+        private const val REACHABILITY_GRACE_MS = 10L * 60L * 1000L
     }
 }

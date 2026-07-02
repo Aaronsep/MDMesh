@@ -16,6 +16,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Keep the wake channel reachable while parked (request battery-optimization exemption). -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
@@ -129,11 +130,18 @@
             </intent-filter>
         </receiver>
 
-        <!-- Foreground service that owns the check-in lifecycle. -->
+        <!-- Foreground service that owns the check-in lifecycle. Typed specialUse on API 34+
+             (dataSync kept for older platforms): Android 15 bans dataSync FGS starts from
+             BOOT_COMPLETED, which silently killed boot reachability — a Device Owner management
+             channel is the canonical specialUse case and IS allowed from boot. -->
         <service
             android:name=".service.CheckInService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="specialUse|dataSync">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Device Owner MDM agent: maintains the management command channel (check-in + push socket) so the organization can administer this dedicated device." />
+        </service>
 
         <!-- PackageInstaller commit results land here (explicit, non-exported). -->
         <receiver

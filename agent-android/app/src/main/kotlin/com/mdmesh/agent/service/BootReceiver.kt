@@ -28,10 +28,9 @@ class BootReceiver : BroadcastReceiver() {
                 // Android 12+. The FGS start below is best-effort (restores the instant socket when
                 // the OS allows it from this broadcast).
                 runCatching { CheckInWorker.scheduleNow(context) }
-                // NOTE(API 35): Android 15 forbids starting a dataSync FGS from BOOT_COMPLETED
-                // (it throws ForegroundServiceStartNotAllowedException). runCatching swallows
-                // that today; needs on-device validation before switching to another FGS type
-                // or an alternate resume path.
+                // The service starts as specialUse on API 34+ (see the manifest note), which —
+                // unlike dataSync — Android 15 permits from BOOT_COMPLETED. runCatching stays as
+                // the belt-and-braces: if an OEM still refuses, the worker above covers.
                 runCatching {
                     ContextCompat.startForegroundService(
                         context,
