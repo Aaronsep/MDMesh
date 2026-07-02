@@ -9,6 +9,16 @@
 {$SITE_ADDRESS} {
 	encode gzip
 
+	# Canonical agent-APK URL: /files/agent.apk works on BOTH deployment shapes (native serves a
+	# real file from Tomcat; here it's the supervisor's sha256-verified release mirror — the same
+	# upstream as /update/agent.apk, which stays below for back-compat). The exact-path matcher
+	# outranks the /files/* → server route (Caddy sorts handles longest-path-first), so this must
+	# stay more specific than @backend.
+	handle /files/agent.apk {
+		rewrite * /update/agent.apk
+		reverse_proxy supervisor:9000
+	}
+
 	# API, uploaded files, and the agent wake WebSocket → the Tomcat server. reverse_proxy
 	# upgrades WebSockets automatically, so /agent/ws works without extra config.
 	@backend path /rest/* /files/* /agent/ws/*

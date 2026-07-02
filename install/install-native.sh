@@ -4,6 +4,10 @@
 # front). For the turnkey experience use ./setup.sh (Docker). Flags: -y/--yes (skip confirm), -v/--verbose
 # (stream all output instead of hiding it in the log). Best-effort + idempotent; review before prod use.
 set -euo pipefail
+# Secrets hygiene: files this script writes (the install log, ROOT.xml, temp downloads) can carry
+# the DB password / hash secret, so create everything owner-only by default. Tomcat and the server
+# run as root here, so 0600/0700 artifacts stay readable by the things that need them.
+umask 077
 cd "$(dirname "$0")/.."
 REPO="$PWD"   # repo root — used for absolute paths inside subshells (e.g. exploding the WAR)
 
@@ -20,6 +24,9 @@ for a in "$@"; do case "$a" in -y|--yes) ASSUME_YES=1 ;; -v|--verbose) VERBOSE=1
 # ------------------------------------------------------------------------------------------------------
 LOGFILE="${LOGFILE:-/var/log/mdmesh-install.log}"
 : > "$LOGFILE" 2>/dev/null || LOGFILE="/tmp/mdmesh-install.log"; : > "$LOGFILE" 2>/dev/null || true
+# The log can capture echoed SQL (including the DB password — see the Database step), so keep it
+# owner-only even if it pre-existed with looser modes (umask only covers newly created files).
+chmod 600 "$LOGFILE" 2>/dev/null || true
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
   c_reset=$'\033[0m'; c_dim=$'\033[2m'; c_grn=$'\033[32m'; c_red=$'\033[31m'
   c_yel=$'\033[33m'; c_cyn=$'\033[36m'; c_bold=$'\033[1m'; TTY=1
@@ -154,6 +161,8 @@ ok "$(javac -version 2>&1) — $JAVA_HOME"
 step "Database"
 # Idempotent: every run generates a fresh DB_PASSWORD, so ALWAYS set the role's password to match — ALTER
 # if the role already exists from a previous run, else CREATE — so ROOT.xml + seeding always authenticate.
+# NB: the password is inlined into the SQL text, so a psql error here could echo the whole statement
+# (password included) into $LOGFILE — acceptable because the log is chmod 600 / owner-only (above).
 {
   if sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='mdmesh'" | grep -q 1; then
     sudo -u postgres psql -c "ALTER USER mdmesh WITH PASSWORD '${DB_PASSWORD}';"
@@ -306,8 +315,13 @@ cat > "$CATALINA/conf/Catalina/localhost/ROOT.xml" <<XML
     <Parameter name="mqtt.server.uri" value=""/>
     <Parameter name="mqtt.auth" value="0"/>
     <Parameter name="device.fast.search.chars" value="5"/>
+    <!-- TODO(parity): the Docker stack wires SMTP via env (smtp.host/port/ssl/starttls/username/
+         password/from — see docker/entrypoint.sh); this installer writes no smtp.* Parameters yet,
+         so password-reset emails stay disabled on native installs. Add them when SMTP is needed. -->
 </Context>
 XML
+# ROOT.xml carries the DB password + hash.secret; umask should already yield 0600, but be explicit.
+chmod 600 "$CATALINA/conf/Catalina/localhost/ROOT.xml"
 ok "server + console deployed (console at /, API at /rest); ROOT.xml written"
 
 step "Starting the server"
@@ -376,17 +390,19 @@ if [ "$SEED" = yes ]; then
       | PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U mdmesh -d mdmesh || echo "(seed warnings ok if already seeded)"
     PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U mdmesh -d mdmesh -c \
       "UPDATE users SET password='$(pwhash "$ADMIN_PASSWORD")', passwordreset=true, passwordresettoken='${RESET_TOKEN}' WHERE login='admin';"
-    # QR/token enrollment creates the device row on demand — that needs the settings flag ON and a
-    # default configuration (devices.configurationid is NOT NULL; the init seed sets neither, and
-    # without them every /agent/v1/enroll fails). COALESCE keeps a previously chosen default config.
-    PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U mdmesh -d mdmesh -c \
-      "UPDATE settings SET createnewdevices=true, newdeviceconfigurationid=COALESCE(newdeviceconfigurationid, (SELECT MIN(id) FROM configurations));"
   } >> "$LOGFILE" 2>&1
   ok "admin account seeded"
 else
   step "Preserving existing data"
   info "Skipped seeding — your configurations, devices and admin login are untouched"
 fi
+
+# Shared post-seed repairs (install/sql/post_seed.sql, same file setup.sh pipes in Docker) — run on
+# EVERY install/upgrade, deliberately OUTSIDE the seed gate so upgrades of older installs get them
+# too: the enrollment-settings fix (createnewdevices + a default configuration, without which every
+# /agent/v1/enroll fails) and the aux-Headwind-app scrub. Idempotent; no-op on an empty database.
+PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U mdmesh -d mdmesh -f install/sql/post_seed.sql >> "$LOGFILE" 2>&1
+ok "post-seed repairs applied (enrollment settings + aux-app scrub)"
 
 trap - ERR
 printf '\n  %s%s✓ MDMesh installed (native)%s\n\n' "$c_grn" "$c_bold" "$c_reset"
