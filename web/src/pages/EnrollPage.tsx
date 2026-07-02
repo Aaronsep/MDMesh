@@ -49,11 +49,11 @@ export function EnrollPage() {
     setWifiSec((SECURITY_VALUES as string[]).includes(sec) ? (sec as WifiSecurity) : 'WPA');
   }, [cfgId, configs]);
 
-  async function generate() {
+  async function generate(configurationId?: number) {
     setBusy(true);
     setTokError(null);
     try {
-      const res = await mintEnrollToken();
+      const res = await mintEnrollToken(configurationId);
       if (res.token) {
         setToken(res.token);
         setExpiresAt(res.expiresAt);
@@ -69,8 +69,14 @@ export function EnrollPage() {
     }
   }
 
-  // Mint a token up front so the QR is ready on load.
-  useEffect(() => { void generate(); /* eslint-disable-next-line */ }, []);
+  // Mint a token whenever the selected configuration changes (including first load): the token
+  // BINDS the device to that configuration server-side, so a QR generated for "Kiosk fleet"
+  // must never carry a token minted for a different config.
+  useEffect(() => {
+    const id = Number(cfgId);
+    void generate(Number.isFinite(id) && id > 0 ? id : undefined);
+    // eslint-disable-next-line
+  }, [cfgId]);
 
   async function copy() {
     if (!token) return;

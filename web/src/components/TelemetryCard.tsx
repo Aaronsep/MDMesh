@@ -23,10 +23,18 @@ function Group({ title, data }: { title: string; data?: Record<string, unknown> 
 export function TelemetryCard({ device }: { device: Device }) {
   const [t, setT] = useState<TelemetrySnapshot | null>(null);
   useEffect(() => {
-    const load = () => getTelemetry(device.number).then(setT).catch(() => setT(null));
+    let on = true;
+    let id: ReturnType<typeof setTimeout>;
+    // Self-scheduling poll — the next tick is armed only after the current one finishes.
+    const load = async () => {
+      await getTelemetry(device.number)
+        .then((v) => { if (on) setT(v); })
+        .catch(() => { if (on) setT(null); });
+      if (!on) return;
+      id = setTimeout(() => void load(), 5000);
+    };
     void load();
-    const id = setInterval(load, 5000);
-    return () => clearInterval(id);
+    return () => { on = false; clearTimeout(id); };
   }, [device.number]);
 
   if (!t) {

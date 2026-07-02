@@ -32,6 +32,8 @@ export class ApiError extends Error {
 interface RequestOptions {
   method?: string;
   body?: unknown;
+  /** Optional cancellation, forwarded to fetch — lets callers abort long polls. */
+  signal?: AbortSignal;
   // Some endpoints (e.g. /devices/search) consume a raw JSON string rather than
   // an object. We always JSON.stringify, which is correct for both.
 }
@@ -46,6 +48,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     headers: {
       Accept: 'application/json',
     },
+    signal: opts.signal,
   };
 
   if (opts.body !== undefined) {
@@ -90,7 +93,13 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     return undefined as unknown as T;
   }
 
-  const envelope = JSON.parse(text) as ApiEnvelope<T>;
+  let envelope: ApiEnvelope<T>;
+  try {
+    envelope = JSON.parse(text) as ApiEnvelope<T>;
+  } catch {
+    // e.g. an HTML error page from a proxy — surface it as an API error, not a crash.
+    throw new ApiError('Unexpected non-JSON response from server', 'ERROR', res.status);
+  }
   if (envelope.status && envelope.status !== 'OK') {
     throw new ApiError(
       envelope.message ?? 'The server returned an error',
@@ -102,12 +111,13 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
 }
 
 export const apiClient = {
-  get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'POST', body }),
-  put: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'PUT', body }),
-  del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
-  postForm: <T>(path: string, form: FormData) =>
-    request<T>(path, { method: 'POST', body: form }),
+  get: <T>(path: string, signal?: AbortSignal) => request<T>(path, { signal }),
+  post: <T>(path: string, body?: unknown, signal?: AbortSignal) =>
+    request<T>(path, { method: 'POST', body, signal }),
+  put: <T>(path: string, body?: unknown, signal?: AbortSignal) =>
+    request<T>(path, { method: 'PUT', body, signal }),
+  del: <T>(path: string, signal?: AbortSignal) =>
+    request<T>(path, { method: 'DELETE', signal }),
+  postForm: <T>(path: string, form: FormData, signal?: AbortSignal) =>
+    request<T>(path, { method: 'POST', body: form, signal }),
 };

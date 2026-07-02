@@ -9,7 +9,7 @@ import { EventTimeline } from '../components/EventTimeline';
 import { LocationPanel } from '../components/LocationPanel';
 import { getTelemetry, type TelemetrySnapshot } from '../api/telemetry';
 import {
-  getDeviceState, forceSync, queueCommand, type DeviceState,
+  getDeviceState, forceSync, queueCommand, syncConfigApps, type DeviceState,
 } from '../api/commands';
 import { ApiError } from '../api/client';
 import { isOnline as isOnlineByRecency } from '../ui/status';
@@ -47,9 +47,16 @@ export function DeviceDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await searchDevices({ pageSize: 1000 });
-      const items = res.devices?.items ?? [];
-      const found = items.find((d) => String(d.id) === id) ?? null;
+      // The route param is the device number (see DevicesPage/DashboardPage links), so a narrow
+      // server-side search finds it without downloading the fleet. Old id-style links (and rare
+      // substring collisions on the number) miss it and fall back to the broad fetch.
+      const matches = (d: DeviceView) => d.number === id || String(d.id) === id;
+      let res = await searchDevices({ value: id, pageSize: 1 });
+      let found = (res.devices?.items ?? []).find(matches) ?? null;
+      if (!found) {
+        res = await searchDevices({ pageSize: 1000 });
+        found = (res.devices?.items ?? []).find(matches) ?? null;
+      }
       setConfigs(res.configurations ?? {});
       setDevice(found);
       if (!found) setError('Device not found.');
@@ -68,13 +75,20 @@ export function DeviceDetailPage() {
 
   useEffect(() => {
     if (!device) return;
-    const poll = () => {
-      void getTelemetry(device.number).then(setTele).catch(() => undefined);
-      void getDeviceState(device.number).then(setDs).catch(() => undefined);
+    let on = true;
+    let t: ReturnType<typeof setTimeout>;
+    // Self-scheduling poll: the next tick is armed only after the current one finishes, so slow
+    // responses can't stack overlapping requests.
+    const poll = async () => {
+      await Promise.all([
+        getTelemetry(device.number).then((v) => { if (on) setTele(v); }).catch(() => undefined),
+        getDeviceState(device.number).then((v) => { if (on) setDs(v); }).catch(() => undefined),
+      ]);
+      if (!on) return;
+      t = setTimeout(() => void poll(), 5000);
     };
-    poll();
-    const t = setInterval(poll, 5000);
-    return () => clearInterval(t);
+    void poll();
+    return () => { on = false; clearTimeout(t); };
   }, [device]);
 
   const configName =
@@ -117,6 +131,21 @@ export function DeviceDetailPage() {
       toast.push('ok', 'Lock queued', '');
     } catch (e) {
       toast.push('err', 'Lock failed', e instanceof Error ? e.message : '');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Re-queue the device's configuration apps (action=install) — for devices enrolled before the
+  // config's app list changed, or enrolled before config-driven install existed.
+  async function installConfigApps() {
+    if (!device) return;
+    setBusy(true);
+    try {
+      const res = await syncConfigApps(device.number);
+      toast.push('ok', 'Config apps queued', `${res.queued} install command${res.queued === 1 ? '' : 's'} queued.`);
+    } catch (e) {
+      toast.push('err', 'Sync apps failed', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -232,6 +261,9 @@ export function DeviceDetailPage() {
             </button>
             <button className="sec" disabled={busy} onClick={() => void lock()}>
               Lock
+            </button>
+            <button className="sec" disabled={busy} onClick={() => void installConfigApps()}>
+              Install config apps
             </button>
           </div>
 

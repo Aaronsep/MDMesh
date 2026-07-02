@@ -38,9 +38,11 @@ export function RolloutPanel() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const on = useRef(true); // false after unmount — stops in-flight refreshes from re-arming the poll
 
   const refresh = useCallback(async () => {
     const r = await getActiveRollout().catch(() => null);
+    if (!on.current) return;
     setRollout(r);
     const active = !!r && (r.stage === 'canary' || r.stage === 'fleet');
     clearTimeout(timer.current);
@@ -48,9 +50,10 @@ export function RolloutPanel() {
   }, []);
 
   useEffect(() => {
-    void getUpdateStatus().then(setStatus);
+    on.current = true;
+    void getUpdateStatus().then((s) => { if (on.current) setStatus(s); });
     void refresh();
-    return () => clearTimeout(timer.current);
+    return () => { on.current = false; clearTimeout(timer.current); };
   }, [refresh]);
 
   const openPicker = async () => {

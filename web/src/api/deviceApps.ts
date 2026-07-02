@@ -20,14 +20,17 @@ async function runForResult(
   deviceId: number | string,
   req: QueueCommandRequest,
   timeoutMs = 75000,
+  signal?: AbortSignal,
 ): Promise<string> {
-  const queued = await queueCommand(deviceId, req);
+  const queued = await queueCommand(deviceId, req, signal);
   const id = queued?.id;
   if (id == null) throw new Error('Command was not queued');
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    if (signal?.aborted) throw new Error('Cancelled');
     await sleep(1500);
-    const hist = await listCommandHistory(deviceId).catch(() => []);
+    if (signal?.aborted) throw new Error('Cancelled');
+    const hist = await listCommandHistory(deviceId, 0, signal).catch(() => []);
     const cmd = hist.find((c) => String(c.id) === String(id));
     if (!cmd) continue;
     if (cmd.status === 'done') return cmd.detail ?? '';
@@ -39,8 +42,8 @@ async function runForResult(
 }
 
 /** Scan the device for installed packages (metadata only — no icons). */
-export async function scanApps(deviceId: number | string): Promise<AppInfo[]> {
-  const detail = await runForResult(deviceId, { type: 'apps.scan' });
+export async function scanApps(deviceId: number | string, signal?: AbortSignal): Promise<AppInfo[]> {
+  const detail = await runForResult(deviceId, { type: 'apps.scan' }, 75000, signal);
   const parsed = JSON.parse(detail || '{}') as { apps?: AppInfo[] };
   return parsed.apps ?? [];
 }
@@ -73,18 +76,25 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+/** Overall cap across all icon batches — on top of the per-command timeout. */
+const ICONS_DEADLINE_MS = 3 * 60 * 1000;
+
 /** Fetch base64-PNG icons for the given packages, in batches. Returns a pkg→dataURL map. */
 export async function fetchIcons(
   deviceId: number | string,
   packages: string[],
   onBatch?: (icons: Record<string, string>) => void,
+  signal?: AbortSignal,
 ): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
+  const deadline = Date.now() + ICONS_DEADLINE_MS;
   for (const batch of chunk(packages, 24)) {
+    const left = deadline - Date.now();
+    if (left <= 0) throw new Error('Icon fetch took too long — try again');
     const detail = await runForResult(deviceId, {
       type: 'apps.icons',
       payload: JSON.stringify({ packages: batch }),
-    });
+    }, Math.min(75000, left), signal);
     const parsed = JSON.parse(detail || '{}') as { icons?: Array<{ pkg: string; pngBase64: string }> };
     const got: Record<string, string> = {};
     for (const ic of parsed.icons ?? []) got[ic.pkg] = `data:image/png;base64,${ic.pngBase64}`;

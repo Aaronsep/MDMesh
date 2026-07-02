@@ -16,10 +16,18 @@ const LABELS: Record<string, string> = {
 export function EventTimeline({ device }: { device: Device }) {
   const [events, setEvents] = useState<DeviceEvent[]>([]);
   useEffect(() => {
-    const load = () => getEvents(device.number).then(setEvents).catch(() => undefined);
+    let on = true;
+    let t: ReturnType<typeof setTimeout>;
+    // Self-scheduling poll — the next tick is armed only after the current one finishes.
+    const load = async () => {
+      await getEvents(device.number)
+        .then((evs) => { if (on) setEvents(evs); })
+        .catch(() => undefined);
+      if (!on) return;
+      t = setTimeout(() => void load(), 5000);
+    };
     void load();
-    const t = setInterval(load, 5000);
-    return () => clearInterval(t);
+    return () => { on = false; clearTimeout(t); };
   }, [device.number]);
 
   return (

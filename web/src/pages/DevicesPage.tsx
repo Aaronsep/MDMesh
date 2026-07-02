@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
 import { DeviceGlyph } from '../ui/DeviceGlyph';
@@ -27,7 +27,7 @@ function configName(
 
 // Online = checked in recently. statusCode is config-compliance colour (green even for a device
 // that was factory-reset and stopped reporting), so it must NOT drive the online/offline dot.
-const isOnline = (d: DeviceView) => isOnlineByRecency(d.lastUpdate);
+const isOnline = (d: DeviceView, now?: number) => isOnlineByRecency(d.lastUpdate, now);
 
 function IconSearch() {
   return (
@@ -60,7 +60,7 @@ function IconList() {
 export function DevicesPage() {
   const navigate = useNavigate();
   const toast = useToast();
-  const { devices, configurations, loading, error, reload } = useDevices();
+  const { devices, total, configurations, loading, error, reload } = useDevices();
   const [view, setView] = useState<View>('grid');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [config, setConfig] = useState('all');
@@ -81,7 +81,26 @@ export function DevicesPage() {
       .catch(() => undefined);
   }, []);
 
-  const onlineCount = useMemo(() => devices.filter(isOnline).length, [devices]);
+  // Tick every 30s so online/offline chips and dots decay as devices go quiet.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Server-side search: the list is capped at one page, so let the query hit the API too
+  // (debounced); the client-side filters below still apply on top of what came back.
+  const firstSearch = useRef(true);
+  useEffect(() => {
+    if (firstSearch.current) { firstSearch.current = false; return; } // mount load is in useDevices
+    const t = setTimeout(() => { void reload(q.trim()); }, 300);
+    return () => clearTimeout(t);
+  }, [q, reload]);
+
+  const onlineCount = useMemo(
+    () => devices.filter((d) => isOnline(d, now)).length,
+    [devices, now],
+  );
 
   // Group by hardware id: a value shared by >1 row = same physical device enrolled twice.
   const dupCount = useMemo(() => {
@@ -113,8 +132,8 @@ export function DevicesPage() {
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return devices.filter((d) => {
-      if (status === 'online' && !isOnline(d)) return false;
-      if (status === 'offline' && isOnline(d)) return false;
+      if (status === 'online' && !isOnline(d, now)) return false;
+      if (status === 'offline' && isOnline(d, now)) return false;
       if (config !== 'all' && configName(d, configurations) !== config) return false;
       if (android !== 'all' && d.androidVersion !== android) return false;
       if (dupOnly && (d.hardwareId ? (dupCount.get(d.hardwareId) ?? 0) : 0) <= 1) return false;
@@ -124,9 +143,10 @@ export function DevicesPage() {
       }
       return true;
     });
-  }, [devices, status, config, android, q, dupOnly, dupCount, configurations]);
+  }, [devices, status, config, android, q, dupOnly, dupCount, configurations, now]);
 
-  const go = (d: DeviceView) => navigate(`/devices/${d.id}`);
+  // Route by number (not id) so the detail page can fetch the device with a narrow search.
+  const go = (d: DeviceView) => navigate(`/devices/${encodeURIComponent(d.number)}`);
 
   const toggle = (id: number) =>
     setSelected((prev) => {
@@ -180,7 +200,7 @@ export function DevicesPage() {
       <div className="dv-head">
         <h1>Devices</h1>
         <span className="dv-count">
-          {devices.length} total · {onlineCount} online
+          {total > devices.length ? `${devices.length} of ${total}` : devices.length} total · {onlineCount} online
         </span>
         <div className="dv-spacer" />
         <div className="dv-search">
@@ -299,6 +319,7 @@ export function DevicesPage() {
                 <DeviceCard
                   key={d.id}
                   d={d}
+                  now={now}
                   config={configName(d, configurations)}
                   dup={dupOf(d)}
                   selected={selected.has(d.id)}
@@ -314,6 +335,7 @@ export function DevicesPage() {
                 <DeviceRow
                   key={d.id}
                   d={d}
+                  now={now}
                   config={configName(d, configurations)}
                   dup={dupOf(d)}
                   selected={selected.has(d.id)}
@@ -400,6 +422,7 @@ function DupBadge({ n }: { n: number }) {
 
 function DeviceCard({
   d,
+  now,
   config,
   dup,
   selected,
@@ -408,6 +431,7 @@ function DeviceCard({
   onOpen,
 }: {
   d: DeviceView;
+  now: number;
   config: string;
   dup: number;
   selected: boolean;
@@ -415,7 +439,7 @@ function DeviceCard({
   onToggle: () => void;
   onOpen: () => void;
 }) {
-  const online = isOnline(d);
+  const online = isOnline(d, now);
   // Once a selection is in progress, clicking a card toggles it instead of opening it.
   const act = selectionActive ? onToggle : onOpen;
   return (
@@ -454,6 +478,7 @@ function DeviceCard({
 
 function DeviceRow({
   d,
+  now,
   config,
   dup,
   selected,
@@ -462,6 +487,7 @@ function DeviceRow({
   onOpen,
 }: {
   d: DeviceView;
+  now: number;
   config: string;
   dup: number;
   selected: boolean;
@@ -469,7 +495,7 @@ function DeviceRow({
   onToggle: () => void;
   onOpen: () => void;
 }) {
-  const online = isOnline(d);
+  const online = isOnline(d, now);
   const act = selectionActive ? onToggle : onOpen;
   return (
     <div

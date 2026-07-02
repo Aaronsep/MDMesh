@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { scanApps, fetchIcons, getLatestScan, type AppInfo } from '../api/deviceApps';
 import { listApplications, appCategory, type Application } from '../api/applications';
 import { queueCommand } from '../api/commands';
@@ -21,8 +21,26 @@ const iconKey = (pkg: string, v?: number) => `mdm.icon.${pkg}@${v ?? 0}`;
 function cachedIcon(pkg: string, v?: number): string | undefined {
   try { return localStorage.getItem(iconKey(pkg, v)) ?? undefined; } catch { return undefined; }
 }
+/** Remove every localStorage key with the given prefix, except `keep`. */
+function evictIcons(prefix: string, keep?: string) {
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(prefix) && k !== keep) localStorage.removeItem(k);
+  }
+}
 function cacheIcon(pkg: string, v: number | undefined, dataUrl: string) {
-  try { localStorage.setItem(iconKey(pkg, v), dataUrl); } catch { /* quota — ignore */ }
+  const key = iconKey(pkg, v);
+  try {
+    // Drop stale versions of this package's icon so the cache doesn't grow without bound.
+    evictIcons(`mdm.icon.${pkg}@`, key);
+    localStorage.setItem(key, dataUrl);
+  } catch {
+    // Quota — evict every cached icon once and retry before giving up silently.
+    try {
+      evictIcons('mdm.icon.');
+      localStorage.setItem(key, dataUrl);
+    } catch { /* still over quota — ignore */ }
+  }
 }
 
 export function KioskEnterModal({
@@ -51,6 +69,14 @@ export function KioskEnterModal({
   const [deviceIcons, setDeviceIcons] = useState<Record<string, string>>({});
   const [loadingIcons, setLoadingIcons] = useState(false);
 
+  // Cancels in-flight scan / icon polls when the modal closes (it unmounts on close).
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    const ac = new AbortController();
+    abortRef.current = ac;
+    return () => ac.abort();
+  }, []);
+
   useEffect(() => {
     listApplications()
       .then(setLib)
@@ -77,12 +103,13 @@ export function KioskEnterModal({
     setScanning(true);
     setScanErr(null);
     try {
-      const list = await scanApps(device.number);
+      const list = await scanApps(device.number, abortRef.current?.signal);
       setApps(list);
       setScannedAt(Date.now());
       primeFrom(list);
       if (!list.length) setScanErr('The device reported no apps. Give it a moment after an update, then retry.');
     } catch (e) {
+      if (abortRef.current?.signal.aborted) return; // modal closed — nothing to report
       setScanErr(e instanceof Error ? e.message : 'Scan failed');
     } finally {
       setScanning(false);
@@ -121,8 +148,9 @@ export function KioskEnterModal({
       await fetchIcons(device.number, need, (batch) => {
         setDeviceIcons((prev) => ({ ...prev, ...batch }));
         for (const [pkg, url] of Object.entries(batch)) cacheIcon(pkg, byPkg.get(pkg)?.versionCode, url);
-      });
+      }, abortRef.current?.signal);
     } catch (e) {
+      if (abortRef.current?.signal.aborted) return; // modal closed — nothing to report
       toast.push('err', 'Icon fetch failed', e instanceof Error ? e.message : '');
     } finally {
       setLoadingIcons(false);

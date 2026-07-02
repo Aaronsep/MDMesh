@@ -25,14 +25,25 @@ export function ActionConsole({ device }: { device: Device }) {
   const [kioskOpen, setKioskOpen] = useState(false);
 
   const refresh = useCallback(async () => {
-    setState(await getDeviceState(device.number).catch(() => null));
-    setHistory(await listCommandHistory(device.number).catch(() => []));
+    const [st, hist] = await Promise.all([
+      getDeviceState(device.number).catch(() => null),
+      listCommandHistory(device.number).catch(() => []),
+    ]);
+    setState(st);
+    setHistory(hist);
   }, [device.number]);
 
   useEffect(() => {
-    void refresh();
-    const t = setInterval(refresh, 5000); // light UI poll of server-side state
-    return () => clearInterval(t);
+    let on = true;
+    let t: ReturnType<typeof setTimeout>;
+    // Light UI poll of server-side state — self-scheduling so slow responses can't overlap.
+    const loop = async () => {
+      await refresh();
+      if (!on) return;
+      t = setTimeout(() => void loop(), 5000);
+    };
+    void loop();
+    return () => { on = false; clearTimeout(t); };
   }, [refresh]);
 
   function start(t: CommandTemplateExt) {

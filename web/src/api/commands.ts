@@ -79,10 +79,12 @@ export const COMMAND_TEMPLATES: CommandTemplate[] = [
 export async function queueCommand(
   deviceId: number | string,
   req: QueueCommandRequest,
+  signal?: AbortSignal,
 ): Promise<QueuedCommand> {
   return apiClient.post<QueuedCommand>(
     `/private/agent/v1/devices/${deviceId}/commands`,
     req,
+    signal,
   );
 }
 
@@ -232,15 +234,21 @@ export async function getDeviceState(deviceId: number | string): Promise<DeviceS
 }
 
 export async function listCommandHistory(
-  deviceId: number | string, since = 0,
+  deviceId: number | string, since = 0, signal?: AbortSignal,
 ): Promise<CommandHistoryItem[]> {
   return apiClient.get<CommandHistoryItem[]>(
     `/private/agent/v1/devices/${deviceId}/commands?since=${since}`,
+    signal,
   );
 }
 
 export async function forceSync(deviceId: number | string): Promise<void> {
   await apiClient.post(`/private/agent/v1/devices/${deviceId}/sync`, {});
+}
+
+/** Queue app.install for the device's configuration apps marked action=install. */
+export async function syncConfigApps(deviceId: number | string): Promise<{ queued: number }> {
+  return apiClient.post<{ queued: number }>(`/private/agent/v1/devices/${deviceId}/syncApps`, {});
 }
 
 // --- App deploy (app store) -------------------------------------------------

@@ -11,6 +11,11 @@ export interface EnrollTokenResponse {
   [key: string]: unknown;
 }
 
-export async function mintEnrollToken(): Promise<EnrollTokenResponse> {
-  return apiClient.post<EnrollTokenResponse>('/private/agent/v1/token', {});
+export async function mintEnrollToken(configurationId?: number): Promise<EnrollTokenResponse> {
+  // configurationId binds the enrolled device to that configuration (server validates ownership);
+  // omitted -> the server's settings default applies.
+  return apiClient.post<EnrollTokenResponse>(
+    '/private/agent/v1/token',
+    configurationId ? { configurationId } : {},
+  );
 }

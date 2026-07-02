@@ -26,7 +26,7 @@ function messageFor(err: unknown): string {
 
 export function useDevices(
   initialValue = '',
-  pageSize = 50,
+  pageSize = 1000,
 ): DevicesState {
   const [devices, setDevices] = useState<DeviceView[]>([]);
   const [total, setTotal] = useState(0);

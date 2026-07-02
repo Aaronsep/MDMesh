@@ -27,10 +27,10 @@ function configName(
   return configs[String(d.configurationId)]?.name ?? 'Unassigned';
 }
 
-function bucketOf(d: DeviceView): Bucket {
+function bucketOf(d: DeviceView, now?: number): Bucket {
   // Offline first (recency of last check-in); a still-reporting device with a config issue is
   // "attention". statusCode alone can't say offline — it stays green after a factory reset.
-  if (!isOnlineByRecency(d.lastUpdate)) return 'offline';
+  if (!isOnlineByRecency(d.lastUpdate, now)) return 'offline';
   return statusMeta(d.statusCode).tone === 'warn' ? 'attention' : 'online';
 }
 
@@ -100,18 +100,25 @@ export function DashboardPage() {
   const { devices, total, configurations, loading, error } = useDevices();
   const [activity, setActivity] = useState<ActivityItem[] | null>(null);
 
+  // Tick every 30s so the online/attention/offline split decays as devices go quiet.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
+
   const counts = useMemo(() => {
     let online = 0,
       attention = 0,
       offline = 0;
     for (const d of devices) {
-      const b = bucketOf(d);
+      const b = bucketOf(d, now);
       if (b === 'online') online++;
       else if (b === 'attention') attention++;
       else offline++;
     }
     return { online, attention, offline };
-  }, [devices]);
+  }, [devices, now]);
 
   const shown = devices.length;
   const pct = (n: number) => (shown ? `${(n / shown) * 100}%` : '0%');
@@ -119,10 +126,10 @@ export function DashboardPage() {
   const attention = useMemo(
     () =>
       [...devices]
-        .filter((d) => bucketOf(d) !== 'online')
+        .filter((d) => bucketOf(d, now) !== 'online')
         .sort((a, b) => (a.lastUpdate ?? 0) - (b.lastUpdate ?? 0))
         .slice(0, 6),
-    [devices],
+    [devices, now],
   );
 
   const byConfig = useMemo(() => {
@@ -230,9 +237,9 @@ export function DashboardPage() {
                   role="button"
                   tabIndex={0}
                   style={{ cursor: 'pointer' }}
-                  onClick={() => navigate(`/devices/${a.device.id}`)}
+                  onClick={() => navigate(`/devices/${encodeURIComponent(a.device.number)}`)}
                   onKeyDown={(e) =>
-                    e.key === 'Enter' && navigate(`/devices/${a.device.id}`)
+                    e.key === 'Enter' && navigate(`/devices/${encodeURIComponent(a.device.number)}`)
                   }
                 >
                   <span className="feed-ic">
@@ -280,9 +287,9 @@ export function DashboardPage() {
                       className="att-row"
                       role="button"
                       tabIndex={0}
-                      onClick={() => navigate(`/devices/${d.id}`)}
+                      onClick={() => navigate(`/devices/${encodeURIComponent(d.number)}`)}
                       onKeyDown={(e) =>
-                        e.key === 'Enter' && navigate(`/devices/${d.id}`)
+                        e.key === 'Enter' && navigate(`/devices/${encodeURIComponent(d.number)}`)
                       }
                     >
                       <span className={`dot dot-${m.tone}`} />
