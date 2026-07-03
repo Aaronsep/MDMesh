@@ -96,7 +96,7 @@ printf '\n  %sMDMesh · native install%s\n' "$c_bold" "$c_reset"
 cat <<WARN
 
   ${c_yel}⚠  This will modify THIS host:${c_reset}
-    • apt-get install openjdk-17-jdk, postgresql, maven, nodejs, npm, curl, python3
+    • apt-get install openjdk-17-jdk, postgresql, maven, nodejs, npm, curl, python3, aapt
     • create or alter a PostgreSQL role and database "mdmesh" (resets that role's password)
     • download and unpack Apache Tomcat 9 into /opt/mdmesh-tc (clears its webapps/)
     • write config, logs and uploaded files under /opt/mdmesh
@@ -131,8 +131,8 @@ TOMCAT_VER=9.0.89
 step "Installing dependencies"
 # Tolerate an unrelated broken third-party APT source (e.g. a Docker repo on a codename Docker doesn't
 # publish for → "does not have a Release file") — the native install only needs base Debian packages.
-run "openjdk-17-jdk, postgresql, maven, nodejs, npm, curl" bash -c \
-  'apt-get update -y || echo "(some apt sources failed to refresh — continuing)"; DEBIAN_FRONTEND=noninteractive apt-get install -y openjdk-17-jdk postgresql maven nodejs npm curl python3'
+run "openjdk-17-jdk, postgresql, maven, nodejs, npm, curl, python3, aapt" bash -c \
+  'apt-get update -y || echo "(some apt sources failed to refresh — continuing)"; DEBIAN_FRONTEND=noninteractive apt-get install -y openjdk-17-jdk postgresql maven nodejs npm curl python3 aapt'
 # minisign verifies release-manifest signatures for the updater supervisor. Best-effort: without it
 # the supervisor still runs but reports releases as unverified (and never mirrors an APK).
 DEBIAN_FRONTEND=noninteractive apt-get install -y minisign >> "$LOGFILE" 2>&1 || info "minisign unavailable — updater will report releases as unverified"
@@ -487,5 +487,5 @@ printf '  %sTomcat%s         %s (serving on :%s — front it with your TLS rever
 printf '  %sLocal URL%s      http://localhost:%s/\n' "$c_dim" "$c_reset" "$HTTP_PORT"
 printf '  %sUpdater%s        Settings -> Updates in the console (supervisor on loopback :9000; recovery page: curl 127.0.0.1:9000)\n' "$c_dim" "$c_reset"
 printf '  %sWebSockets%s     your TLS proxy MUST forward WebSocket upgrades for /agent/ws (instant commands; otherwise ~10 min polling)\n' "$c_dim" "$c_reset"
-printf '\n  %sNotes: install '\''aapt'\'' for full APK parsing; add a systemd unit to keep Tomcat running.%s\n' "$c_dim" "$c_reset"
+printf '\n  %sNotes: add a systemd unit to keep Tomcat running.%s\n' "$c_dim" "$c_reset"
 printf '  %sInstall log: %s%s\n\n' "$c_dim" "$LOGFILE" "$c_reset"
