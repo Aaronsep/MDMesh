@@ -41,21 +41,31 @@ async function resolveApp(app: Application): Promise<DeploySubject> {
   let url = app.url;
   let versionCode = app.versionCode;
   let sha256: string | undefined;
+  let partsJson: string | undefined = app.parts;
   try {
     const vs = await getVersions(app.id);
     const latest = [...vs]
-      .filter((v) => v.url)
+      .filter((v) => v.url || v.parts) // a split-bundle version has parts but no single url
       .sort((a, b) => (b.versionCode ?? 0) - (a.versionCode ?? 0))[0];
     if (latest) {
       url = latest.url ?? url;
       versionCode = latest.versionCode ?? versionCode;
       sha256 = latest.apkHash || undefined;
+      partsJson = latest.parts ?? partsJson;
     }
   } catch {
     /* fall back to the app's own fields */
   }
-  if (!url) throw new Error('This app has no APK URL to deploy.');
-  return { label: app.name, packageName: app.pkg, url, versionCode, sha256, applicationId: app.id };
+  let parts: { url: string; sha256?: string }[] | undefined;
+  if (partsJson) {
+    try {
+      parts = (JSON.parse(partsJson) as { url: string; sha256?: string }[]).map((p) => ({ url: p.url, sha256: p.sha256 }));
+    } catch {
+      /* malformed parts — ignore, fall back to url */
+    }
+  }
+  if (!url && !(parts && parts.length)) throw new Error('This app has no APK to deploy.');
+  return { label: app.name, packageName: app.pkg, url: url ?? '', versionCode, sha256, applicationId: app.id, parts };
 }
 
 export function AppsPage() {
@@ -292,10 +302,29 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
       if (b.name) setName(b.name);
       if (b.packageName) setPkg(b.packageName);
       if (b.versionCode) setVc(String(b.versionCode));
+      // Register in the Library so it shows in the config picker + is assignable to a configuration.
+      // A single-part bundle (a universal.apk .apks) is an ordinary single-URL app; a multi-part bundle
+      // stores its parts as a JSON string on the version.
+      try {
+        const saved = await saveAndroidApplication(
+          b.parts.length === 1
+            ? { name: b.name || b.packageName, pkg: b.packageName, url: b.parts[0].url, versionCode: b.versionCode, type: 'app' }
+            : {
+                name: b.name || b.packageName,
+                pkg: b.packageName,
+                versionCode: b.versionCode,
+                type: 'app',
+                parts: JSON.stringify(b.parts.map((p) => ({ url: p.url, sha256: p.sha256, name: p.name }))),
+              },
+        );
+        setSavedAppId(saved.id);
+      } catch {
+        // Non-fatal: still deployable via push-now; may already be in the Library.
+      }
       toast.push(
         'ok',
         'Bundle ready',
-        `${b.parts.length} split${b.parts.length === 1 ? '' : 's'} hosted — review and deploy.`,
+        `${b.parts.length} split${b.parts.length === 1 ? '' : 's'} hosted — added to your Library.`,
       );
     } catch (e) {
       // The server returns a clear message for encrypted .apkm / no-apks bundles.
@@ -335,17 +364,22 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
   // Explicit "Add to Library" — the drop-time save is automatic but silent; this gives a visible action
   // (with real success/error feedback) and a retry, and captures the app id so it becomes config-assignable.
   async function saveToLibrary() {
-    if (!pkg.trim() || !url.trim()) {
-      toast.push('err', 'Missing fields', 'Package name and APK URL are required to add it to your Library.');
+    // A multi-part bundle has no single URL — its parts stand in for one.
+    const isMultiPart = !!bundle && bundle.parts.length > 1;
+    if (!pkg.trim() || (!url.trim() && !isMultiPart)) {
+      toast.push('err', 'Missing fields', 'A package name and an APK URL (or a bundle) are required to add it to your Library.');
       return;
     }
     try {
       const saved = await saveAndroidApplication({
         name: name.trim() || pkg.trim(),
         pkg: pkg.trim(),
-        url: url.trim(),
+        url: isMultiPart ? undefined : url.trim(),
         versionCode: vc ? Number(vc) : undefined,
         type: 'app',
+        parts: isMultiPart
+          ? JSON.stringify(bundle!.parts.map((p) => ({ url: p.url, sha256: p.sha256, name: p.name })))
+          : undefined,
       });
       setSavedAppId(saved.id);
       toast.push('ok', 'Added to Library', `${name.trim() || pkg.trim()} is in your Library — now assignable to a configuration.`);
@@ -478,11 +512,13 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
           </label>
         )}
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {!bundle && (
-            <button className="btn" onClick={() => void saveToLibrary()} disabled={!pkg.trim() || !url.trim()}>
-              {savedAppId ? '✓ In Library' : 'Add to Library'}
-            </button>
-          )}
+          <button
+            className="btn"
+            onClick={() => void saveToLibrary()}
+            disabled={!pkg.trim() || (!url.trim() && !(bundle && bundle.parts.length > 1))}
+          >
+            {savedAppId ? '✓ In Library' : 'Add to Library'}
+          </button>
           <button className="btn btn-primary" onClick={submit}>
             Deploy…
           </button>
