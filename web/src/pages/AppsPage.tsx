@@ -332,6 +332,34 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
     });
   }
 
+  // Explicit "Add to Library" — the drop-time save is automatic but silent; this gives a visible action
+  // (with real success/error feedback) and a retry, and captures the app id so it becomes config-assignable.
+  async function saveToLibrary() {
+    if (!pkg.trim() || !url.trim()) {
+      toast.push('err', 'Missing fields', 'Package name and APK URL are required to add it to your Library.');
+      return;
+    }
+    try {
+      const saved = await saveAndroidApplication({
+        name: name.trim() || pkg.trim(),
+        pkg: pkg.trim(),
+        url: url.trim(),
+        versionCode: vc ? Number(vc) : undefined,
+        type: 'app',
+      });
+      setSavedAppId(saved.id);
+      toast.push('ok', 'Added to Library', `${name.trim() || pkg.trim()} is in your Library — now assignable to a configuration.`);
+    } catch (e) {
+      const existing = (await listApplications(pkg.trim()).catch(() => [])).find((a) => a.pkg === pkg.trim());
+      if (existing?.id) {
+        setSavedAppId(existing.id);
+        toast.push('ok', 'Already in Library', 'This app is already in your Library — you can assign it to a configuration.');
+      } else {
+        toast.push('err', 'Could not add to Library', e instanceof Error ? e.message : 'The server rejected the save.');
+      }
+    }
+  }
+
   return (
     <div className="panel" style={{ maxWidth: 640 }}>
       <div className="panel-head">
@@ -449,10 +477,16 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
             <input className="input mono" value={sha} onChange={(e) => setSha(e.target.value)} placeholder="optional — integrity check" />
           </label>
         )}
-        <div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {!bundle && (
+            <button className="btn" onClick={() => void saveToLibrary()} disabled={!pkg.trim() || !url.trim()}>
+              {savedAppId ? '✓ In Library' : 'Add to Library'}
+            </button>
+          )}
           <button className="btn btn-primary" onClick={submit}>
             Deploy…
           </button>
+          {savedAppId && <span className="note" style={{ margin: 0 }}>Saved — assignable to a configuration.</span>}
         </div>
       </div>
     </div>
