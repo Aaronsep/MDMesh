@@ -39,7 +39,7 @@
         VALUES
         <foreach item="item" index="index" collection="confs"
                  open="" separator="," close="">
-            (#{item.configurationId}, #{applicationId}, #{versionId}, #{item.remove}, #{item.showIcon}, #{item.action})
+            (#{item.configurationId}, #{applicationId}, #{versionId}, COALESCE(#{item.remove}, FALSE), COALESCE(#{item.showIcon}, TRUE), #{item.action})
         </foreach>
     </insert>
 

@@ -121,6 +121,8 @@ export function DeployModal({
           configurationId: cid,
           applicationId: subject.applicationId,
           action: 1,
+          showIcon: true, // configurationApplications.showIcon is NOT NULL
+          remove: false,
           notify: true,
         });
       }
