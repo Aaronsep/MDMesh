@@ -3,6 +3,7 @@ import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
 import {
   getConfigurations,
+  getConfigurationApps,
   saveConfiguration,
   deleteConfiguration,
   copyConfiguration,
@@ -305,6 +306,25 @@ function ConfigEditor({
   const [pickerOpen, setPickerOpen] = useState(false);
   const isNew = initial.id == null;
 
+  // The list endpoint doesn't carry a config's assigned apps, so for an existing
+  // config we must fetch them here. Until they arrive, block save — otherwise a
+  // PUT (which replaces the whole app set) would wipe the config's apps.
+  const [appsReady, setAppsReady] = useState(isNew);
+  useEffect(() => {
+    if (initial.id == null) return;
+    let cancelled = false;
+    getConfigurationApps(initial.id)
+      .then((assigned) => {
+        if (cancelled) return;
+        setDraft((d) => ({ ...d, applications: assigned }));
+        setAppsReady(true);
+      })
+      .catch(() => !cancelled && setAppsReady(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [initial.id]);
+
   const set = (key: string, value: unknown) => setDraft((d) => ({ ...d, [key]: value }));
 
   const allowed: ConfigApp[] = (draft.applications as ConfigApp[] | undefined) ?? [];
@@ -332,6 +352,10 @@ function ConfigEditor({
   async function save() {
     if (!String(draft.name ?? '').trim()) {
       toast.push('err', 'Name required', 'Give the configuration a name.');
+      return;
+    }
+    if (!appsReady) {
+      toast.push('err', 'Still loading', 'The assigned apps are still loading — try again in a moment.');
       return;
     }
     setBusy(true);
@@ -368,8 +392,8 @@ function ConfigEditor({
         {readOnly ? (
           <button className="btn btn-primary" onClick={onDuplicate}>Duplicate to edit</button>
         ) : (
-          <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>
-            {busy ? 'Saving…' : 'Save'}
+          <button className="btn btn-primary" onClick={() => void save()} disabled={busy || !appsReady}>
+            {busy ? 'Saving…' : !appsReady ? 'Loading…' : 'Save'}
           </button>
         )}
       </div>

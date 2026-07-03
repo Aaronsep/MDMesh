@@ -30,6 +30,9 @@ export interface ConfigApp {
   showIcon?: boolean;
   remove?: boolean;
   system?: boolean;
+  /** The version this config is pinned to; preserved across a save so the
+   *  server doesn't silently bump the app to its latest version. */
+  usedVersionId?: number;
 }
 
 // Full configuration. Field access is by key (the editor is schema-driven), so we
@@ -47,6 +50,37 @@ export interface Configuration {
 /** Full configurations (every field) — same endpoint as the list. */
 export async function getConfigurations(): Promise<Configuration[]> {
   return apiClient.get<Configuration[]>('/private/configurations/search');
+}
+
+// The app↔configuration matrix for one config. The server (GET
+// /configurations/applications/{id}) returns EVERY library app carrying a
+// `selected` flag plus its per-config columns (action, usedVersionId, showIcon…).
+// The list endpoint (/configurations/search) does NOT include applications, so
+// the editor must fetch the assigned set here — otherwise it opens blank and a
+// save would wipe the config's apps.
+interface ConfigAppRow extends ConfigApp {
+  selected?: boolean;
+}
+
+/** The apps currently assigned to a configuration (selected rows only). */
+export async function getConfigurationApps(configId: number): Promise<ConfigApp[]> {
+  const rows = await apiClient.get<ConfigAppRow[]>(
+    `/private/configurations/applications/${configId}`,
+  );
+  return rows
+    .filter((a) => a.selected)
+    .map((a) => ({
+      id: a.id,
+      applicationId: a.applicationId,
+      name: a.name,
+      pkg: a.pkg,
+      version: a.version,
+      action: a.action,
+      showIcon: a.showIcon,
+      remove: a.remove,
+      system: a.system,
+      usedVersionId: a.usedVersionId,
+    }));
 }
 
 /** Create (id null) or update (id set). Returns the saved configuration. */
