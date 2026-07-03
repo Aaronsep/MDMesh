@@ -124,6 +124,24 @@ export async function uploadApk(file: File): Promise<FileUploadResult> {
   return apiClient.postForm<FileUploadResult>('/private/web-ui-files', form);
 }
 
+// --- Split-APK bundle upload (.xapk/.apks/.apkm/.zip) ------------------------
+// The server unpacks the bundle, hosts each split, and returns the parts to
+// install together in one session. See the /bundle endpoint on FilesResource.
+
+export interface BundleUploadResult {
+  name: string;
+  packageName: string;
+  versionCode: number;
+  parts: { url: string; sha256: string; name: string }[];
+}
+
+/** Upload a split-APK bundle; the server unpacks it and returns the hosted parts. */
+export async function uploadBundle(file: File): Promise<BundleUploadResult> {
+  const form = new FormData();
+  form.append('file', file, file.name);
+  return apiClient.postForm<BundleUploadResult>('/private/web-ui-files/bundle', form);
+}
+
 /** Commit a just-uploaded temp file into the served files area; returns its url. */
 export async function commitUpload(serverPath: string): Promise<UploadedFileView> {
   return apiClient.post<UploadedFileView>('/private/web-ui-files/update', {

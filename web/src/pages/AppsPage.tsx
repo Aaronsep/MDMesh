@@ -5,9 +5,11 @@ import {
   listApplications,
   getVersions,
   uploadApk,
+  uploadBundle,
   commitUpload,
   saveAndroidApplication,
   type Application,
+  type BundleUploadResult,
 } from '../api/applications';
 import { searchFdroid, type FDroidApp } from '../api/fdroid';
 import { DeployModal, type DeploySubject } from '../components/DeployModal';
@@ -188,6 +190,13 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
   );
 }
 
+// Split-APK bundle containers the /bundle endpoint unpacks into installable parts.
+const BUNDLE_EXTS = ['.xapk', '.apks', '.apkm', '.zip'];
+function isBundleName(n: string): boolean {
+  const lower = n.toLowerCase();
+  return BUNDLE_EXTS.some((e) => lower.endsWith(e));
+}
+
 function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
   const toast = useToast();
   const [query, setQuery] = useState('');
@@ -196,16 +205,22 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
   const [pkg, setPkg] = useState('');
   const [vc, setVc] = useState('');
   const [sha, setSha] = useState('');
+  const [bundle, setBundle] = useState<BundleUploadResult | null>(null);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dropped, setDropped] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function onFile(file: File) {
-    if (!file.name.toLowerCase().endsWith('.apk')) {
-      toast.push('err', 'Not an APK', 'Drop an .apk file.');
+    if (isBundleName(file.name)) {
+      await onBundle(file);
       return;
     }
+    if (!file.name.toLowerCase().endsWith('.apk')) {
+      toast.push('err', 'Not an APK', 'Drop an .apk, .xapk, .apks, .apkm or .zip file.');
+      return;
+    }
+    setBundle(null);
     setUploading(true);
     setDropped(file.name);
     try {
@@ -252,7 +267,45 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
     }
   }
 
+  // Split bundles (.xapk/.apks/.apkm/.zip): the server unpacks + hosts every part.
+  // There's no single URL, so we hold the parts and deploy them together.
+  async function onBundle(file: File) {
+    setUploading(true);
+    setDropped(file.name);
+    try {
+      const b = await uploadBundle(file);
+      setBundle(b);
+      setUrl('');
+      setSha('');
+      if (b.name) setName(b.name);
+      if (b.packageName) setPkg(b.packageName);
+      if (b.versionCode) setVc(String(b.versionCode));
+      toast.push(
+        'ok',
+        'Bundle ready',
+        `${b.parts.length} split${b.parts.length === 1 ? '' : 's'} hosted — review and deploy.`,
+      );
+    } catch (e) {
+      // The server returns a clear message for encrypted .apkm / no-apks bundles.
+      toast.push('err', 'Bundle upload failed', e instanceof Error ? e.message : '');
+      setDropped(null);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   function submit() {
+    if (bundle) {
+      onDeploy({
+        label: name.trim() || bundle.name || 'Split bundle',
+        packageName: (pkg.trim() || bundle.packageName),
+        // No single URL for a bundle; parts carry the hosted splits.
+        url: '',
+        versionCode: vc ? Number(vc) : bundle.versionCode,
+        parts: bundle.parts.map((p) => ({ url: p.url, sha256: p.sha256 })),
+      });
+      return;
+    }
     if (!url.trim() || !pkg.trim()) {
       toast.push('err', 'Missing fields', 'APK URL and package name are required.');
       return;
@@ -312,7 +365,7 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
           <input
             ref={fileRef}
             type="file"
-            accept=".apk,application/vnd.android.package-archive"
+            accept=".apk,.xapk,.apks,.apkm,.zip,application/vnd.android.package-archive"
             hidden
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -323,24 +376,46 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
           {uploading ? (
             <span className="dz-main"><span className="spin" /> Analyzing {dropped}…</span>
           ) : dropped ? (
-            <span className="dz-main">✓ {dropped}<span className="dz-sub">Drop another to replace</span></span>
+            <span className="dz-main">
+              ✓ {dropped}
+              <span className="dz-sub">
+                {bundle
+                  ? `Split bundle · ${bundle.parts.length} part${bundle.parts.length === 1 ? '' : 's'} · drop another to replace`
+                  : 'Drop another to replace'}
+              </span>
+            </span>
           ) : (
             <span className="dz-main">
-              Drop an APK here, or click to browse
-              <span className="dz-sub">Auto-fills package, version and a hosted URL</span>
+              Drop an APK or split bundle here, or click to browse
+              <span className="dz-sub">
+                APK, or .xapk / .apks / .apkm / .zip — auto-fills package, version and hosted URL(s)
+              </span>
             </span>
           )}
         </div>
         <p className="note" style={{ margin: 0 }}>
           Point the agent at any reachable APK, or drop a file to upload and host it here.
-          Need an app from APKMirror or APKPure? Search above, download the APK, then drop it
-          in — those are unofficial sources, at your own risk. Silent install needs Device Owner
-          (the <span className="mono">silentInstall</span> capability).
+          Split bundles (<span className="mono">.xapk</span> / <span className="mono">.apks</span> /{' '}
+          <span className="mono">.apkm</span> / <span className="mono">.zip</span>) are unpacked and
+          installed as one session. Need an app from APKMirror or APKPure? Search above, download it,
+          then drop it in — those are unofficial sources, at your own risk. Silent install needs
+          Device Owner (the <span className="mono">silentInstall</span> capability).
         </p>
-        <label className="field">
-          <span className="label">APK URL *</span>
-          <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…/app.apk" />
-        </label>
+        {bundle ? (
+          <label className="field">
+            <span className="label">Split bundle</span>
+            <input
+              className="input mono"
+              value={`${bundle.parts.length} part${bundle.parts.length === 1 ? '' : 's'}: ${bundle.parts.map((p) => p.name).join(', ')}`}
+              readOnly
+            />
+          </label>
+        ) : (
+          <label className="field">
+            <span className="label">APK URL *</span>
+            <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…/app.apk" />
+          </label>
+        )}
         <label className="field">
           <span className="label">Package name *</span>
           <input className="input mono" value={pkg} onChange={(e) => setPkg(e.target.value)} placeholder="com.example.app" />
@@ -355,10 +430,12 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
             <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="optional" />
           </label>
         </div>
-        <label className="field">
-          <span className="label">SHA-256 (base64)</span>
-          <input className="input mono" value={sha} onChange={(e) => setSha(e.target.value)} placeholder="optional — integrity check" />
-        </label>
+        {!bundle && (
+          <label className="field">
+            <span className="label">SHA-256 (base64)</span>
+            <input className="input mono" value={sha} onChange={(e) => setSha(e.target.value)} placeholder="optional — integrity check" />
+          </label>
+        )}
         <div>
           <button className="btn btn-primary" onClick={submit}>
             Deploy…

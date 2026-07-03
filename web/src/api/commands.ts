@@ -259,6 +259,9 @@ export interface AppInstallSpec {
   versionCode?: number;
   sha256?: string;
   runAfterInstall?: boolean;
+  /** Split-APK bundle: when present the agent installs all parts in one session
+   *  and `url`/`sha256` are ignored. */
+  parts?: { url: string; sha256?: string }[];
 }
 
 /** Queue an `app.install` for a device (the proven OTA path). */
@@ -266,17 +269,26 @@ export async function installApp(
   deviceId: number | string,
   spec: AppInstallSpec,
 ): Promise<QueuedCommand> {
+  // A split bundle installs from `parts`; a single APK from `url`/`sha256`.
+  const payload = spec.parts?.length
+    ? {
+        packageName: spec.packageName,
+        versionCode: spec.versionCode,
+        runAfterInstall: spec.runAfterInstall ?? false,
+        parts: spec.parts,
+      }
+    : {
+        url: spec.url,
+        packageName: spec.packageName,
+        versionCode: spec.versionCode,
+        sha256: spec.sha256,
+        runAfterInstall: spec.runAfterInstall ?? false,
+      };
   return queueCommand(deviceId, {
     type: 'app.install',
     // The gate token is the prefixed appManagement key (app.<key>); the agent advertises
     // app.silentInstall. (Bare 'silentInstall' never matched — see proto/endpoints.md.)
     requiresCapability: 'app.silentInstall',
-    payload: JSON.stringify({
-      url: spec.url,
-      packageName: spec.packageName,
-      versionCode: spec.versionCode,
-      sha256: spec.sha256,
-      runAfterInstall: spec.runAfterInstall ?? false,
-    }),
+    payload: JSON.stringify(payload),
   });
 }

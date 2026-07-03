@@ -605,6 +605,148 @@ public class FilesResource {
 
     // =================================================================================================================
     @ApiOperation(
+            value = "Upload a split-APK bundle",
+            notes = "Unpacks a .xapk/.apks/zip bundle into individual APKs, hosts each, and returns the "
+                    + "deployable part list for a split app.install. A plain .apk yields a single part."
+    )
+    @POST
+    @Produces(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    @Path("/bundle")
+    public Response uploadBundle(@FormDataParam("file") InputStream uploadedInputStream,
+                                 @FormDataParam("file") FormDataContentDisposition fileDetail) {
+        if (!SecurityContext.get().hasPermission("edit_files")) {
+            logger.error("Unauthorized attempt to upload a bundle by user " +
+                    SecurityContext.get().getCurrentUserName());
+            return Response.PERMISSION_DENIED();
+        }
+        File bundleTmp = null;
+        List<File> partTmps = new LinkedList<>();
+        try {
+            String fileName = new String(fileDetail.getFileName().getBytes(StandardCharsets.ISO_8859_1),
+                    StandardCharsets.UTF_8);
+            String lower = fileName.toLowerCase();
+            bundleTmp = FileUtil.createTempFile(FileUtil.adjustFileName(fileName));
+            FileUtil.writeToFile(uploadedInputStream, bundleTmp.getAbsolutePath());
+
+            // Extract the APK parts. A bare .apk is a one-part install; anything else is treated as a
+            // zip container (.xapk/.apks/.apkm/.zip) and every *.apk entry becomes a part.
+            if (lower.endsWith(".apk")) {
+                partTmps.add(bundleTmp);
+                bundleTmp = null; // it IS a part now; don't double-delete
+            } else {
+                partTmps = extractApkParts(bundleTmp);
+                if (partTmps.isEmpty()) {
+                    return Response.ERROR("error.bundle.noApks"); // encrypted .apkm, or not an APK bundle
+                }
+            }
+
+            Customer customer = customerDAO.findById(SecurityContext.get().getCurrentCustomerId().get());
+
+            // Package + version come from any part (splits share them); prefer one that parses cleanly.
+            APKFileDetails meta = null;
+            for (File part : partTmps) {
+                try {
+                    APKFileDetails d = apkFileAnalyzer.analyzeFile(part.getAbsolutePath());
+                    if (d != null && d.getPkg() != null && d.getVersionCode() != 0) { meta = d; break; }
+                    if (meta == null) meta = d;
+                } catch (Exception ignored) { /* a config split may not parse standalone — try the next */ }
+            }
+            if (meta == null || meta.getPkg() == null) {
+                return Response.ERROR("error.bundle.unreadable");
+            }
+
+            List<java.util.Map<String, Object>> parts = new LinkedList<>();
+            int i = 0;
+            for (File part : partTmps) {
+                String partName = String.format("%s-%d-part%d.apk", meta.getPkg(), meta.getVersionCode(), i++);
+                String sha256 = sha256Hex(part);
+                String url = hostFile(part, partName, customer); // moves part into the files area
+                java.util.Map<String, Object> p = new java.util.LinkedHashMap<>();
+                p.put("url", url);
+                p.put("sha256", sha256);
+                p.put("name", partName);
+                parts.add(p);
+            }
+            partTmps.clear(); // moved (not copied) into the files area — nothing left to clean up
+
+            java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+            out.put("name", fileName);
+            out.put("packageName", meta.getPkg());
+            out.put("versionCode", meta.getVersionCode());
+            out.put("parts", parts);
+            logger.info("Bundle {} unpacked: {} parts for {} ({})", fileName, parts.size(), meta.getPkg(),
+                    meta.getVersionCode());
+            return Response.OK(out);
+        } catch (Exception e) {
+            logger.error("Unexpected error unpacking bundle", e);
+            return Response.ERROR("error.bundle.unpack");
+        } finally {
+            if (bundleTmp != null) bundleTmp.delete();
+            for (File f : partTmps) f.delete();
+        }
+    }
+
+    /** Extract every {@code *.apk} entry of a zip container to temp files. If a {@code universal.apk}
+     *  is present (bundletool .apks), return ONLY it — it's a self-contained single install. */
+    private List<File> extractApkParts(File zip) throws IOException {
+        List<File> parts = new LinkedList<>();
+        File universal = null;
+        try (java.util.zip.ZipInputStream zin =
+                     new java.util.zip.ZipInputStream(new java.io.BufferedInputStream(new FileInputStream(zip)))) {
+            java.util.zip.ZipEntry entry;
+            while ((entry = zin.getNextEntry()) != null) {
+                if (entry.isDirectory()) continue;
+                String base = new File(entry.getName()).getName().toLowerCase();
+                if (!base.endsWith(".apk")) continue;
+                // Output name is generated (not the entry name), so a malicious entry path can't escape.
+                File out = FileUtil.createTempFile("bundlepart");
+                try (java.io.OutputStream os = new java.io.BufferedOutputStream(new java.io.FileOutputStream(out))) {
+                    byte[] buf = new byte[64 * 1024];
+                    int n;
+                    while ((n = zin.read(buf)) >= 0) os.write(buf, 0, n);
+                }
+                if (base.equals("universal.apk")) universal = out; else parts.add(out);
+            }
+        }
+        if (universal != null) {
+            for (File f : parts) f.delete(); // discard splits; the universal APK stands alone
+            List<File> only = new LinkedList<>();
+            only.add(universal);
+            return only;
+        }
+        return parts;
+    }
+
+    /** Move an already-extracted APK into the served files area and return its public URL. */
+    private String hostFile(File apkTmp, String fileName, Customer customer) throws IOException {
+        File moved = FileUtil.moveFile(customer, filesDirectory, null, apkTmp.getAbsolutePath(), fileName);
+        if (moved == null) throw new IOException("failed to host " + fileName);
+        List<FileView> view = new LinkedList<>();
+        handleFile(moved, view, null, customer);
+        if (view.isEmpty()) throw new IOException("hosted file produced no URL: " + fileName);
+        return view.get(0).getUrl();
+    }
+
+    /** Lowercase hex SHA-256 — the format the agent's InstallManager verifies each part against. */
+    private static String sha256Hex(File file) throws IOException {
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            try (InputStream in = new java.io.BufferedInputStream(new FileInputStream(file))) {
+                byte[] buf = new byte[64 * 1024];
+                int n;
+                while ((n = in.read(buf)) >= 0) md.update(buf, 0, n);
+            }
+            StringBuilder sb = new StringBuilder();
+            for (byte b : md.digest()) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IOException("SHA-256 unavailable", e); // never on a stock JRE
+        }
+    }
+
+    // =================================================================================================================
+    @ApiOperation(
             value = "Download a file",
             notes = "Downloads the content of the file",
             responseHeaders = {@ResponseHeader(name = "Content-Disposition")}

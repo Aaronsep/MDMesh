@@ -20,6 +20,9 @@ export interface DeploySubject {
   sha256?: string;
   /** Present only for library apps — required for assign-to-configuration. */
   applicationId?: number;
+  /** Split-APK bundle parts — when set, push-to-device installs these together.
+   *  (Config-assign stays single-URL and ignores this.) */
+  parts?: { url: string; sha256?: string }[];
 }
 
 type Tab = 'device' | 'config';
@@ -85,6 +88,7 @@ export function DeployModal({
           versionCode: subject.versionCode,
           sha256: subject.sha256,
           runAfterInstall: runAfter,
+          parts: subject.parts,
         });
         ok++;
       } catch {
