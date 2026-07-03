@@ -36,6 +36,9 @@ interface RequestOptions {
   signal?: AbortSignal;
   // Some endpoints (e.g. /devices/search) consume a raw JSON string rather than
   // an object. We always JSON.stringify, which is correct for both.
+  /** Send `body` verbatim as text/plain instead of JSON — for endpoints that read
+   *  a raw String (e.g. POST /devices/{id}/description). */
+  text?: boolean;
 }
 
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
@@ -55,6 +58,11 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     if (opts.body instanceof FormData) {
       // Let the browser set the multipart boundary; don't force a Content-Type.
       init.body = opts.body;
+    } else if (opts.text) {
+      // Raw text body for endpoints that read a String (not JSON) — sending it
+      // JSON-encoded would store the surrounding quotes.
+      init.headers = { ...init.headers, 'Content-Type': 'text/plain' };
+      init.body = String(opts.body);
     } else {
       init.headers = {
         ...init.headers,
@@ -114,6 +122,8 @@ export const apiClient = {
   get: <T>(path: string, signal?: AbortSignal) => request<T>(path, { signal }),
   post: <T>(path: string, body?: unknown, signal?: AbortSignal) =>
     request<T>(path, { method: 'POST', body, signal }),
+  postText: <T>(path: string, body: string, signal?: AbortSignal) =>
+    request<T>(path, { method: 'POST', body, text: true, signal }),
   put: <T>(path: string, body?: unknown, signal?: AbortSignal) =>
     request<T>(path, { method: 'PUT', body, signal }),
   del: <T>(path: string, signal?: AbortSignal) =>

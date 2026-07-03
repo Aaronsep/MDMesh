@@ -81,6 +81,15 @@ export async function deleteDevicesBulk(ids: number[]): Promise<void> {
   await apiClient.post('/private/devices/deleteBulk', { ids });
 }
 
+/** Rename a device's friendly description — POST /private/devices/{id}/description
+ *  (raw text body; requires the edit_device_desc permission, granted to all roles). */
+export async function updateDeviceDescription(
+  deviceId: number,
+  description: string,
+): Promise<void> {
+  await apiClient.postText(`/private/devices/${deviceId}/description`, description);
+}
+
 export async function searchDevices(
   req: DeviceSearchRequest = {},
 ): Promise<DeviceListView> {

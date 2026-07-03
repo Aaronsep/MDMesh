@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
 import { DeviceGlyph } from '../ui/DeviceGlyph';
-import { searchDevices, type DeviceView, type ConfigurationLookup } from '../api/devices';
+import {
+  searchDevices, updateDeviceDescription, type DeviceView, type ConfigurationLookup,
+} from '../api/devices';
 import { ActionConsole } from '../components/ActionConsole';
 import { TelemetryCard } from '../components/TelemetryCard';
 import { EventTimeline } from '../components/EventTimeline';
@@ -28,6 +30,86 @@ function powerLabel(mode?: string | null): string {
   if (mode === 'alwaysOn') return 'Always-on';
   if (mode === 'adaptive') return 'Battery-saver';
   return '—';
+}
+
+/** Inline editor for the device's friendly name (description). Click to edit,
+ *  Enter/Save to persist, Esc/Cancel to revert. An empty value clears the name. */
+function NameField({
+  device,
+  onSaved,
+}: {
+  device: DeviceView;
+  onSaved: (description: string) => void;
+}) {
+  const toast = useToast();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(device.description ?? '');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setValue(device.description ?? '');
+  }, [device.description, editing]);
+
+  const cancel = () => {
+    setValue(device.description ?? '');
+    setEditing(false);
+  };
+
+  async function save() {
+    const next = value.trim();
+    if (next === (device.description ?? '')) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateDeviceDescription(device.id, next);
+      onSaved(next);
+      setEditing(false);
+      toast.push('ok', 'Name saved', next || 'Name cleared.');
+    } catch (e) {
+      toast.push('err', 'Rename failed', e instanceof Error ? e.message : '');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="dd-name-edit">
+        <input
+          autoFocus
+          value={value}
+          maxLength={200}
+          placeholder="Device name"
+          disabled={saving}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void save();
+            else if (e.key === 'Escape') cancel();
+          }}
+        />
+        <button className="pri" disabled={saving} onClick={() => void save()}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button className="sec" disabled={saving} onClick={cancel}>
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button type="button" className="dd-name" onClick={() => setEditing(true)} title="Rename this device">
+      <span className={`mfr ${device.description ? '' : 'muted'}`}>
+        {device.description || 'Add a name'}
+      </span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+      </svg>
+    </button>
+  );
 }
 
 export function DeviceDetailPage() {
@@ -253,7 +335,10 @@ export function DeviceDetailPage() {
             <DeviceGlyph className="ico" name={device.description || device.number} size={20} />
           </div>
           <h1>{device.number}</h1>
-          {device.description && <div className="mfr">{device.description}</div>}
+          <NameField
+            device={device}
+            onSaved={(desc) => setDevice((d) => (d ? { ...d, description: desc } : d))}
+          />
 
           <div className="actions">
             <button className="pri" disabled={busy} onClick={() => void syncNow()}>
