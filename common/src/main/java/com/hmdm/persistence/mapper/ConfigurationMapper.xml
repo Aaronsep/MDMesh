@@ -54,7 +54,10 @@
         VALUES
         <foreach item="item" index="index" collection="apps"
                  open="" separator="," close="">
-            (#{id}, #{item.id}, COALESCE(#{item.usedVersionId}, #{item.latestVersion}), #{item.remove}, #{item.showIcon},
+            (#{id}, #{item.id},
+            COALESCE(CAST(#{item.usedVersionId} AS INTEGER), CAST(#{item.latestVersion} AS INTEGER),
+                     (SELECT latestVersion FROM applications WHERE id = #{item.id})),
+            #{item.remove}, #{item.showIcon},
             #{item.action}, #{item.screenOrder}, #{item.keyCode}, #{item.bottom}, #{item.longTap})
         </foreach>
     </insert>
