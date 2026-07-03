@@ -10,9 +10,8 @@
 
 package com.hmdm.rest.resource.support;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hmdm.notification.AgentWakeHub;
+import com.hmdm.rest.json.InstallPayloadBuilder;
 import com.hmdm.persistence.AgentCommandDAO;
 import com.hmdm.persistence.UnsecureDAO;
 import com.hmdm.persistence.domain.AgentCommand;
@@ -35,7 +34,6 @@ import java.util.List;
 public class ConfigAppInstaller {
 
     private static final Logger logger = LoggerFactory.getLogger(ConfigAppInstaller.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /** Action value in configurationApplications meaning "install this app". */
     private static final int ACTION_INSTALL = 1;
@@ -70,14 +68,15 @@ public class ConfigAppInstaller {
                     continue;
                 }
                 String url = firstUsableUrl(app);
-                if (url == null || app.getPkg() == null || app.getPkg().trim().isEmpty()) {
+                boolean hasParts = app.getParts() != null && !app.getParts().trim().isEmpty();
+                if ((url == null && !hasParts) || app.getPkg() == null || app.getPkg().trim().isEmpty()) {
                     // Catalog placeholder / web app / seed leftover — nothing downloadable.
                     continue;
                 }
                 AgentCommand cmd = new AgentCommand();
                 cmd.setDeviceNumber(device.getNumber());
                 cmd.setType("app.install");
-                cmd.setPayload(installPayload(app, url));
+                cmd.setPayload(InstallPayloadBuilder.build(app.getPkg().trim(), app.getVersionCode(), url, app.getParts()));
                 cmd.setRequiresCapability(RolloutProgress.INSTALL_CAPABILITY);
                 cmd.setStatus("pending");
                 cmd.setCreatedAt(now);
@@ -108,17 +107,5 @@ public class ConfigAppInstaller {
             }
         }
         return null;
-    }
-
-    // sha256 is intentionally omitted: the library stores hex hashes while the agent verifier
-    // expects base64 — a mismatched format hard-fails the install. Delivery integrity rides TLS.
-    private static String installPayload(Application app, String url) {
-        ObjectNode p = MAPPER.createObjectNode();
-        p.put("url", url);
-        p.put("packageName", app.getPkg().trim());
-        if (app.getVersionCode() > 0) {
-            p.put("versionCode", app.getVersionCode());
-        }
-        return p.toString();
     }
 }
