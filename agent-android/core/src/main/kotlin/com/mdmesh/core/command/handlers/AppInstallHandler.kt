@@ -2,6 +2,7 @@ package com.mdmesh.core.command.handlers
 
 import com.mdmesh.core.command.CommandHandler
 import com.mdmesh.core.command.CommandResults
+import com.mdmesh.core.install.ApkPart
 import com.mdmesh.core.install.InstallManager
 import com.mdmesh.core.install.InstallOutcome
 import com.mdmesh.core.install.InstallRequest
@@ -11,15 +12,24 @@ import com.mdmesh.proto.ProtocolJson
 import kotlinx.serialization.Serializable
 
 /**
- * `app.install` — silently install (or upgrade) an APK as Device Owner. Payload:
- * `{ url, packageName, versionCode?, sha256?, runAfterInstall? }`. Version gating,
- * downgrade-blocking, and the install itself are delegated to [InstallManager].
+ * `app.install` — silently install (or upgrade) an app as Device Owner. Payload:
+ * `{ url, packageName, versionCode?, sha256?, runAfterInstall?, parts? }`. A `parts` list
+ * (`[{url, sha256?}]`) installs a split-APK bundle (base + splits) in one session; without it
+ * the single `url`/`localPath` is used. Version gating, downgrade-blocking, and the install
+ * itself are delegated to [InstallManager].
  */
 class AppInstallHandler(
     private val installManager: InstallManager,
 ) : CommandHandler {
 
     override val type: String = "app.install"
+
+    @Serializable
+    private data class PartPayload(
+        val url: String? = null,
+        val localPath: String? = null,
+        val sha256: String? = null,
+    )
 
     @Serializable
     private data class Payload(
@@ -29,6 +39,7 @@ class AppInstallHandler(
         val versionCode: Long? = null,
         val sha256: String? = null,
         val runAfterInstall: Boolean = false,
+        val parts: List<PartPayload> = emptyList(),
     )
 
     override suspend fun handle(command: CommandEnvelope): CommandResult {
@@ -46,6 +57,7 @@ class AppInstallHandler(
                 versionCode = p.versionCode,
                 sha256 = p.sha256,
                 runAfterInstall = p.runAfterInstall,
+                parts = p.parts.map { ApkPart(url = it.url, localPath = it.localPath, sha256 = it.sha256) },
             ),
         )
         return when (outcome) {

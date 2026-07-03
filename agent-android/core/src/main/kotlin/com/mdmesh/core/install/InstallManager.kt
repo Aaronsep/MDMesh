@@ -20,6 +20,16 @@ import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** One APK file of an install — a whole app, or a single split of a bundle. */
+data class ApkPart(
+    /** Remote APK URL; mutually exclusive-ish with [localPath] (URL preferred). */
+    val url: String? = null,
+    /** Absolute path to an already-present APK on the device. */
+    val localPath: String? = null,
+    /** Optional lowercase hex SHA-256 of this part; verified after fetch if present. */
+    val sha256: String? = null,
+)
+
 /** What the caller wants installed. */
 data class InstallRequest(
     /** Remote APK URL; mutually exclusive-ish with [localPath] (URL preferred). */
@@ -34,7 +44,17 @@ data class InstallRequest(
     val sha256: String? = null,
     /** When true and the install succeeds, launch the app's main activity. */
     val runAfterInstall: Boolean = false,
-)
+    /**
+     * Split-APK bundle parts (base + config/feature splits). When non-empty this is a multi-APK
+     * install and [url]/[localPath]/[sha256] are ignored; every part is written into ONE
+     * PackageInstaller session (the only correct way to install splits). Empty = single-APK install.
+     */
+    val parts: List<ApkPart> = emptyList(),
+) {
+    /** Normalized part list: the explicit [parts], or the single [url]/[localPath] as one part. */
+    val apkParts: List<ApkPart>
+        get() = if (parts.isNotEmpty()) parts else listOf(ApkPart(url, localPath, sha256))
+}
 
 /** Result of an install/uninstall attempt. */
 sealed interface InstallOutcome {
@@ -92,20 +112,25 @@ class InstallManager @Inject constructor(
                 )
         }
 
-        // 2. Obtain the APK file (download or local), then verify the optional checksum.
-        val apk = runCatching { obtainApk(req) }
-            .getOrElse { return InstallOutcome.Failure(null, "apk fetch failed: ${it.message}") }
-        val downloaded = req.url != null
+        // 2. Obtain every part (single APK, or base + splits of a bundle), verifying each
+        // part's optional checksum. All parts install together in one session (step 3).
+        val parts = req.apkParts
+        val fetched = ArrayList<FetchedApk>(parts.size)
         try {
-            req.sha256?.let { expected ->
-                val actual = sha256Of(apk)
-                if (!actual.equals(expected, ignoreCase = true)) {
-                    return InstallOutcome.Failure(null, "checksum mismatch: expected $expected got $actual")
+            for (part in parts) {
+                val file = runCatching { obtainPart(part) }
+                    .getOrElse { return InstallOutcome.Failure(null, "apk fetch failed: ${it.message}") }
+                fetched += FetchedApk(file, downloaded = part.url != null)
+                part.sha256?.let { expected ->
+                    val actual = sha256Of(file)
+                    if (!actual.equals(expected, ignoreCase = true)) {
+                        return InstallOutcome.Failure(null, "checksum mismatch: expected $expected got $actual")
+                    }
                 }
             }
 
-            // 3. Create + write + commit the session, awaiting the broadcast result.
-            val outcome = runCatching { commitInstall(req.packageName, apk) }
+            // 3. Create + write EVERY part into ONE session + commit, awaiting the broadcast result.
+            val outcome = runCatching { commitInstall(req.packageName, fetched.map { it.file }) }
                 .getOrElse { return InstallOutcome.Failure(null, "install session error: ${it.message}") }
 
             // 4. Optionally launch the app on success.
@@ -115,9 +140,12 @@ class InstallManager @Inject constructor(
             return outcome
         } finally {
             // Only clean up files we downloaded; never delete a caller-provided APK.
-            if (downloaded) apk.delete()
+            fetched.forEach { if (it.downloaded) it.file.delete() }
         }
     }
+
+    /** A fetched part plus whether we downloaded it (and therefore own its cleanup). */
+    private data class FetchedApk(val file: File, val downloaded: Boolean)
 
     /** Silently uninstalls [packageName], awaiting the platform's result. */
     @SuppressLint("MissingPermission") // Device Owner holds DELETE_PACKAGES (declared in the app)
@@ -137,11 +165,16 @@ class InstallManager @Inject constructor(
 
     // --- internals -----------------------------------------------------------------
 
-    private suspend fun commitInstall(packageName: String, apk: File): InstallOutcome =
+    /**
+     * Writes ALL [apks] into a single install session and commits once. One apk installs a whole
+     * app; several install a split set (base + config/feature splits) atomically — the platform
+     * validates on commit that they share package, version, and signing cert.
+     */
+    private suspend fun commitInstall(packageName: String, apks: List<File>): InstallOutcome =
         withContext(Dispatchers.IO) {
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
                 setAppPackageName(packageName)
-                setSize(apk.length())
+                setSize(apks.sumOf { it.length() })
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     setInstallReason(PackageManager.INSTALL_REASON_POLICY) // API 26+ (advisory metadata)
                 }
@@ -152,10 +185,14 @@ class InstallManager @Inject constructor(
 
             val sessionId = packageInstaller.createSession(params)
             packageInstaller.openSession(sessionId).use { session ->
-                FileInputStream(apk).use { input ->
-                    session.openWrite(packageName, 0, apk.length()).use { output ->
-                        input.copyTo(output, bufferSize = 64 * 1024)
-                        session.fsync(output)
+                // Each split needs a distinct name within the session; the platform reads the real
+                // split identity from each APK's manifest, so index-based names are fine.
+                apks.forEachIndexed { i, apk ->
+                    FileInputStream(apk).use { input ->
+                        session.openWrite("part_$i.apk", 0, apk.length()).use { output ->
+                            input.copyTo(output, bufferSize = 64 * 1024)
+                            session.fsync(output)
+                        }
                     }
                 }
                 session.commit(resultSender(sessionId).intentSender)
@@ -198,9 +235,9 @@ class InstallManager @Inject constructor(
             else -> InstallOutcome.Failure(event.status, event.message ?: statusName(event.status))
         }
 
-    private suspend fun obtainApk(req: InstallRequest): File {
-        req.localPath?.let { return File(it) }
-        val url = requireNotNull(req.url) { "InstallRequest needs either url or localPath" }
+    private suspend fun obtainPart(part: ApkPart): File {
+        part.localPath?.let { return File(it) }
+        val url = requireNotNull(part.url) { "install part needs either url or localPath" }
         return withContext(Dispatchers.IO) { download(url) }
     }
 
