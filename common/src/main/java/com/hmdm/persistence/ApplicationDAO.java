@@ -53,6 +53,7 @@ import org.mybatis.guice.transactional.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.hmdm.persistence.domain.Application;
+import com.hmdm.persistence.domain.ApplicationType;
 import com.hmdm.persistence.domain.Customer;
 import com.hmdm.persistence.mapper.ApplicationMapper;
 import com.hmdm.security.SecurityContext;
@@ -117,6 +118,13 @@ public class ApplicationDAO extends AbstractLinkedDAO<Application, ApplicationCo
     @Transactional
     public int insertApplication(Application application) {
         log.debug("Entering #insertApplication: application = {}", application);
+
+        // The applications.type column is NOT NULL (DEFAULT 'app'), but the mapper INSERTs it explicitly —
+        // so a client that omits type (e.g. the console's Add-to-Library call) would write an explicit NULL
+        // and violate the constraint, silently failing the save. Default it here for the whole create path.
+        if (application.getType() == null) {
+            application.setType(ApplicationType.app);
+        }
 
         // If an APK-file was set for new app then make the file available in Files area and parse the app parameters
         // from it (package ID, version)

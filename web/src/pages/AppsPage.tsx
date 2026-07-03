@@ -247,6 +247,7 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
                 url: committed.url,
                 version: fd.version,
                 versionCode: fd.versionCode,
+                type: 'app', // applications.type is NOT NULL — send it explicitly so the save can't fail
               });
               setSavedAppId(saved.id); // enables the deploy dialog's "Add to a configuration" tab
               toast.push('ok', 'APK ready', 'Hosted, added to your Library — review and deploy.');
