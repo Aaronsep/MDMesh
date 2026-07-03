@@ -657,18 +657,20 @@ public class FilesResource {
             }
 
             List<java.util.Map<String, Object>> parts = new LinkedList<>();
-            int i = 0;
             for (File part : partTmps) {
-                String partName = String.format("%s-%d-part%d.apk", meta.getPkg(), meta.getVersionCode(), i++);
+                // Content-addressed name: identical bytes → identical name → re-uploading the same
+                // bundle reuses the already-hosted part instead of colliding (moveFile throws on an
+                // existing name). A different build hashes differently and never clobbers.
                 String sha256 = sha256Hex(part);
-                String url = hostFile(part, partName, customer); // moves part into the files area
+                String partName = String.format("%s-%s.apk", meta.getPkg(), sha256);
+                String url = hostFile(part, partName, customer);
                 java.util.Map<String, Object> p = new java.util.LinkedHashMap<>();
                 p.put("url", url);
                 p.put("sha256", sha256);
                 p.put("name", partName);
                 parts.add(p);
             }
-            partTmps.clear(); // moved (not copied) into the files area — nothing left to clean up
+            partTmps.clear(); // moved/reused into the files area — nothing left to clean up
 
             java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
             out.put("name", fileName);
@@ -718,12 +720,24 @@ public class FilesResource {
         return parts;
     }
 
-    /** Move an already-extracted APK into the served files area and return its public URL. */
+    /**
+     * Host an extracted APK under [fileName] and return its public URL. Idempotent: when a file of
+     * that name already exists (a re-upload of the same content-addressed part), reuse it rather
+     * than throwing FileExistsException — the bytes are identical by construction.
+     */
     private String hostFile(File apkTmp, String fileName, Customer customer) throws IOException {
-        File moved = FileUtil.moveFile(customer, filesDirectory, null, apkTmp.getAbsolutePath(), fileName);
-        if (moved == null) throw new IOException("failed to host " + fileName);
+        // Resolve the exact target path moveFile would use (no drift), so the existence check is reliable.
+        File dest = FileUtil.resolveFile(customer, filesDirectory, null, fileName);
+        File hosted;
+        if (dest.exists()) {
+            hosted = dest;          // same content-addressed part already served; reuse it
+            apkTmp.delete();        // drop the redundant temp copy
+        } else {
+            hosted = FileUtil.moveFile(customer, filesDirectory, null, apkTmp.getAbsolutePath(), fileName);
+            if (hosted == null) throw new IOException("failed to host " + fileName);
+        }
         List<FileView> view = new LinkedList<>();
-        handleFile(moved, view, null, customer);
+        handleFile(hosted, view, null, customer);
         if (view.isEmpty()) throw new IOException("hosted file produced no URL: " + fileName);
         return view.get(0).getUrl();
     }

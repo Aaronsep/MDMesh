@@ -105,20 +105,28 @@ public final class FileUtil {
      * @return a file referencing the moved file if operation was successful; <code>null</code> otherwise.
      * @throws FileExistsException if file already exists in
      */
-    public static File moveFile(Customer customer, String filesDirectory, String localPath, String tmpFilePath, String newName) {
-        File localFile = new File(tmpFilePath);
-        String fileName = newName != null ? newName : getNameFromTmpPath(tmpFilePath);
+    /**
+     * The absolute {@link File} where {@link #moveFile} would place {@code fileName} for this customer.
+     * Single source of truth for the served-files layout so callers (e.g. idempotent hosting) can test
+     * existence without duplicating — and drifting from — this path logic.
+     */
+    public static File resolveFile(Customer customer, String filesDirectory, String localPath, String fileName) {
         while (fileName.startsWith("/")) {
             fileName = fileName.substring(1);
         }
-
         String filePath;
         if (localPath == null || localPath.isEmpty()) {
             filePath = String.format("%s/%s/%s", filesDirectory, customer.getFilesDir(), fileName);
         } else {
             filePath = String.format("%s/%s/%s/%s", filesDirectory, customer.getFilesDir(), localPath, fileName);
         }
-        File file = new File(filePath.replace("/", File.separator));
+        return new File(filePath.replace("/", File.separator));
+    }
+
+    public static File moveFile(Customer customer, String filesDirectory, String localPath, String tmpFilePath, String newName) {
+        File localFile = new File(tmpFilePath);
+        String fileName = newName != null ? newName : getNameFromTmpPath(tmpFilePath);
+        File file = resolveFile(customer, filesDirectory, localPath, fileName);
         file.getParentFile().mkdirs();
 
         if (file.exists()) {
