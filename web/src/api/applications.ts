@@ -136,6 +136,7 @@ export async function uploadApk(file: File): Promise<FileUploadResult> {
 export interface BundleUploadResult {
   name: string;
   packageName: string;
+  version?: string;
   versionCode: number;
   parts: { url: string; sha256: string; name: string }[];
 }

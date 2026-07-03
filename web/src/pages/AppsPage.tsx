@@ -306,12 +306,14 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
       // A single-part bundle (a universal.apk .apks) is an ordinary single-URL app; a multi-part bundle
       // stores its parts as a JSON string on the version.
       try {
+        const version = b.version || String(b.versionCode); // applicationVersions.version is NOT NULL
         const saved = await saveAndroidApplication(
           b.parts.length === 1
-            ? { name: b.name || b.packageName, pkg: b.packageName, url: b.parts[0].url, versionCode: b.versionCode, type: 'app' }
+            ? { name: b.name || b.packageName, pkg: b.packageName, url: b.parts[0].url, version, versionCode: b.versionCode, type: 'app' }
             : {
                 name: b.name || b.packageName,
                 pkg: b.packageName,
+                version,
                 versionCode: b.versionCode,
                 type: 'app',
                 parts: JSON.stringify(b.parts.map((p) => ({ url: p.url, sha256: p.sha256, name: p.name }))),

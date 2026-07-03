@@ -126,6 +126,12 @@ public class ApplicationDAO extends AbstractLinkedDAO<Application, ApplicationCo
             application.setType(ApplicationType.app);
         }
 
+        // applicationVersions.version is NOT NULL. A split bundle has no version NAME (only a versionCode),
+        // so the console omits it — fall back to the versionCode string so the version insert can't fail.
+        if (application.getVersion() == null || application.getVersion().trim().isEmpty()) {
+            application.setVersion(String.valueOf(application.getVersionCode()));
+        }
+
         // If an APK-file was set for new app then make the file available in Files area and parse the app parameters
         // from it (package ID, version)
         final String filePath = application.getFilePath();

@@ -675,6 +675,7 @@ public class FilesResource {
             java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
             out.put("name", fileName);
             out.put("packageName", meta.getPkg());
+            out.put("version", meta.getVersion());
             out.put("versionCode", meta.getVersionCode());
             out.put("parts", parts);
             logger.info("Bundle {} unpacked: {} parts for {} ({})", fileName, parts.size(), meta.getPkg(),
