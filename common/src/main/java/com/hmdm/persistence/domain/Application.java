@@ -83,6 +83,8 @@ public class Application implements CustomerData, Serializable {
     private String iconText;
     @ApiModelProperty(value = "A type of the application icon", allowableValues = "app,web")
     private ApplicationType type;
+    @ApiModelProperty("Split-bundle parts as JSON [{url,sha256,name}] — null for a normal single-APK app")
+    private String parts;
     @ApiModelProperty("An ID of an icon to represent the application")
     private Integer iconId;
     @ApiModelProperty("An file name with the icon to represent the application")
@@ -401,6 +403,14 @@ public class Application implements CustomerData, Serializable {
 
     public void setType(ApplicationType type) {
         this.type = type;
+    }
+
+    public String getParts() {
+        return parts;
+    }
+
+    public void setParts(String parts) {
+        this.parts = parts;
     }
 
     public Integer getIconId() {

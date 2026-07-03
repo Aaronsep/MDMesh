@@ -47,6 +47,9 @@ public class ApplicationVersion implements Serializable {
     @ApiModelProperty("An URL for application package")
     private String url;
 
+    @ApiModelProperty("Split-bundle parts as JSON [{url,sha256,name}] — null for a normal single-APK version")
+    private String parts;
+
     @ApiModelProperty("Has the APK native code, i.e. is split into two APKs")
     private boolean split;
 
@@ -103,6 +106,7 @@ public class ApplicationVersion implements Serializable {
             this.split = true;
             this.urlArm64 = application.getUrl();
         }
+        this.parts = application.getParts();
     }
 
     public Integer getId() {
@@ -135,6 +139,14 @@ public class ApplicationVersion implements Serializable {
 
     public void setVersionCode(int versionCode) {
         this.versionCode = versionCode;
+    }
+
+    public String getParts() {
+        return parts;
+    }
+
+    public void setParts(String parts) {
+        this.parts = parts;
     }
 
     public String getUrl() {

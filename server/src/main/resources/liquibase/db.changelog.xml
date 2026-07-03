@@ -2831,4 +2831,10 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="22.07.03-appversion-parts" author="lunacy" context="common">
+        <comment>Column,new: applicationVersions#parts (split-bundle part list as JSON; null = single-APK app)</comment>
+        <sql>ALTER TABLE applicationVersions ADD COLUMN parts JSONB;</sql>
+        <rollback>ALTER TABLE applicationVersions DROP COLUMN parts;</rollback>
+    </changeSet>
+
 </databaseChangeLog>

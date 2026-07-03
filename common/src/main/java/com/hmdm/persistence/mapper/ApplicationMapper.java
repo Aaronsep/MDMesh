@@ -73,6 +73,7 @@ public interface ApplicationMapper {
                     "applicationVersions.version, " +
                     "applicationVersions.versionCode, " +
                     "applicationVersions.url, " +
+                    "applicationVersions.parts, " +
                     "applicationVersions.split, " +
                     "applicationVersions.urlArmeabi, " +
                     "applicationVersions.urlArm64, " +
@@ -136,8 +137,8 @@ public interface ApplicationMapper {
     @SelectKey( statement = "SELECT currval('applications_id_seq')", keyColumn = "id", keyProperty = "id", before = false, resultType = int.class )
     void insertApplication(Application application);
 
-    @Insert({"INSERT INTO applicationVersions (applicationId, version, versionCode, url, apkHash, split, urlArmeabi, urlArm64) " +
-            "VALUES (#{applicationId}, #{version}, #{versionCode}, #{url}, #{apkHash}, #{split}, #{urlArmeabi}, #{urlArm64})"})
+    @Insert({"INSERT INTO applicationVersions (applicationId, version, versionCode, url, apkHash, split, urlArmeabi, urlArm64, parts) " +
+            "VALUES (#{applicationId}, #{version}, #{versionCode}, #{url}, #{apkHash}, #{split}, #{urlArmeabi}, #{urlArm64}, #{parts})"})
     @SelectKey( statement = "SELECT currval('applicationVersions_id_seq')", keyColumn = "id", keyProperty = "id", before = false, resultType = int.class )
     int insertApplicationVersion(ApplicationVersion version);
 
