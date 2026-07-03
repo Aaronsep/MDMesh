@@ -18,6 +18,9 @@ export interface Application {
   system?: boolean;
   latestVersion?: number;
   runAfterInstall?: boolean;
+  /** Split-bundle parts as a raw JSON string `[{url,sha256,name}]` (server stores it as text);
+   *  present only for multi-part bundles. Use JSON.parse to read, JSON.stringify to send. */
+  parts?: string;
 }
 
 export interface ApplicationVersion {
@@ -28,6 +31,8 @@ export interface ApplicationVersion {
   url?: string;
   apkHash?: string;
   arch?: string | null;
+  /** Split-bundle parts as a raw JSON string `[{url,sha256,name}]`; present only for bundle versions. */
+  parts?: string;
 }
 
 // ApplicationConfigurationLink — the app↔configuration matrix.

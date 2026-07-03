@@ -2832,8 +2832,8 @@
     </changeSet>
 
     <changeSet id="22.07.03-appversion-parts" author="lunacy" context="common">
-        <comment>Column,new: applicationVersions#parts (split-bundle part list as JSON; null = single-APK app)</comment>
-        <sql>ALTER TABLE applicationVersions ADD COLUMN parts JSONB;</sql>
+        <comment>Column,new: applicationVersions#parts (split-bundle part list as JSON text; null = single-APK app). TEXT not JSONB: MyBatis binds it as a String, and PostgreSQL won't implicitly cast varchar→jsonb on a bind parameter; we store/read it whole, never query into it.</comment>
+        <sql>ALTER TABLE applicationVersions ADD COLUMN parts TEXT;</sql>
         <rollback>ALTER TABLE applicationVersions DROP COLUMN parts;</rollback>
     </changeSet>
 
