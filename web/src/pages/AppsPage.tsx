@@ -206,12 +206,14 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
   const [vc, setVc] = useState('');
   const [sha, setSha] = useState('');
   const [bundle, setBundle] = useState<BundleUploadResult | null>(null);
+  const [savedAppId, setSavedAppId] = useState<number | undefined>(undefined);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dropped, setDropped] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function onFile(file: File) {
+    setSavedAppId(undefined); // fresh file → drop any prior Library id
     if (isBundleName(file.name)) {
       await onBundle(file);
       return;
@@ -239,16 +241,25 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
           // not just this one-off deploy. Non-fatal if it fails.
           if (fd?.pkg) {
             try {
-              await saveAndroidApplication({
+              const saved = await saveAndroidApplication({
                 name: fd.name || fd.pkg,
                 pkg: fd.pkg,
                 url: committed.url,
                 version: fd.version,
                 versionCode: fd.versionCode,
               });
+              setSavedAppId(saved.id); // enables the deploy dialog's "Add to a configuration" tab
               toast.push('ok', 'APK ready', 'Hosted, added to your Library — review and deploy.');
             } catch {
-              toast.push('ok', 'APK ready', 'Hosted — review and deploy. (Could not add to Library.)');
+              // Most likely it's already in the Library (same package+version). Reuse that entry so it
+              // stays assignable to a configuration instead of silently dropping it.
+              const existing = (await listApplications(fd.pkg).catch(() => [])).find((a) => a.pkg === fd.pkg);
+              if (existing?.id) {
+                setSavedAppId(existing.id);
+                toast.push('ok', 'APK ready', 'Already in your Library — review and deploy.');
+              } else {
+                toast.push('ok', 'APK ready', 'Hosted — review and deploy. (Could not add to Library.)');
+              }
             }
           } else {
             toast.push('ok', 'APK ready', 'Details filled in — review and deploy.');
@@ -316,6 +327,7 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
       url: url.trim(),
       versionCode: vc ? Number(vc) : undefined,
       sha256: sha.trim() || undefined,
+      applicationId: savedAppId, // present once the APK is in the Library → enables "Add to a configuration"
     });
   }
 
