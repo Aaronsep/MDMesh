@@ -88,6 +88,29 @@ export async function queueCommand(
   );
 }
 
+export interface BulkCommandResult {
+  queued: number;
+  skipped: number[];
+}
+
+/**
+ * Queue one opaque command for many devices at once (agent-v1 bulk contract):
+ *   POST /rest/private/agent/v1/bulk/commands   body: { deviceIds, command }
+ * `deviceIds` are numeric device ids (as held by the DevicesPage selection); the server resolves each
+ * to its device number. Destructive types are rejected server-side. Fire-and-forget.
+ */
+export async function bulkQueueCommand(
+  deviceIds: number[],
+  req: QueueCommandRequest,
+  signal?: AbortSignal,
+): Promise<BulkCommandResult> {
+  return apiClient.post<BulkCommandResult>(
+    '/private/agent/v1/bulk/commands',
+    { deviceIds, command: req },
+    signal,
+  );
+}
+
 // --- Remote Actions catalog + device state/history/sync ----------------------------
 
 export interface ActionParam {
