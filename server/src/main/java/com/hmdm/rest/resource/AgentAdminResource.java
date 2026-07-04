@@ -194,9 +194,10 @@ public class AgentAdminResource {
         return Response.OK(command);
     }
 
-    /** Command types that must never be issued in bulk (destructive group). */
+    /** Command types that must never be issued in bulk (destructive group). Lowercased — matched
+     *  case-insensitively so a mixed-case type can't slip past this destructive-action guard. */
     private static final Set<String> BULK_FORBIDDEN_TYPES =
-            Set.of("device.wipe", "device.passcodeReset");
+            Set.of("device.wipe", "device.passcodereset");
 
     // =================================================================================================================
     @ApiOperation(value = "Queue agent command for many devices",
@@ -214,7 +215,7 @@ public class AgentAdminResource {
             return Response.ERROR("error.agent.command.invalid");
         }
         final String type = req.getCommand().getType().trim();
-        if (BULK_FORBIDDEN_TYPES.contains(type)) {
+        if (BULK_FORBIDDEN_TYPES.contains(type.toLowerCase(java.util.Locale.ROOT))) {
             return Response.ERROR("error.agent.command.bulkForbidden");
         }
 
