@@ -8,6 +8,24 @@ type Device = { number: string };
 type Mode = 'launcher' | 'single';
 type Source = 'library' | 'device';
 
+export type KioskChoice = {
+  mode: Mode;                 // 'launcher' | 'single'
+  packages: string[];         // pinned/allowed package names
+  exitMode: 'gesture' | 'visible' | 'remote';
+  password?: string;
+};
+
+/** Build the `kiosk.enter` payload (device-independent). Mirrors the single-device apply() exactly. */
+export function buildKioskPayload(c: KioskChoice): object {
+  return c.mode === 'single'
+    ? { mode: 'single', pinPackage: c.packages[0], allowedPackages: c.packages,
+        exitMode: c.exitMode, password: c.password || undefined,
+        features: { home: true, notifications: true } }
+    : { mode: 'launcher', allowedPackages: c.packages,
+        exitMode: c.exitMode, password: c.password || undefined,
+        features: { home: true, notifications: true } };
+}
+
 /** A row in either source, normalised so the list renders the same way. */
 interface PickItem {
   pkg: string;
@@ -175,9 +193,7 @@ export function KioskEnterModal({
 
   async function apply() {
     const pkgs = [...selected];
-    const payload = mode === 'single'
-      ? { mode: 'single', pinPackage: pkgs[0], allowedPackages: pkgs, exitMode, password: password || undefined, features: { home: true, notifications: true } }
-      : { mode: 'launcher', allowedPackages: pkgs, exitMode, password: password || undefined, features: { home: true, notifications: true } };
+    const payload = buildKioskPayload({ mode, packages: pkgs, exitMode, password });
     setBusy(true);
     try {
       await queueCommand(device.number, { type: 'kiosk.enter', payload: JSON.stringify(payload) });
