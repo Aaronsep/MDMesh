@@ -28,6 +28,7 @@ import com.hmdm.persistence.domain.AgentCommand;
 import com.hmdm.persistence.domain.AgentEnrollmentToken;
 import com.hmdm.persistence.domain.Device;
 import com.hmdm.notification.AgentWakeHub;
+import com.hmdm.rest.json.AgentBulkCommandRequest;
 import com.hmdm.rest.json.Response;
 import com.hmdm.security.SecurityContext;
 import io.swagger.annotations.Api;
@@ -45,7 +46,10 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -188,6 +192,63 @@ public class AgentAdminResource {
 
         logger.info("Agent command {} queued for device {}", command.getId(), deviceId);
         return Response.OK(command);
+    }
+
+    /** Command types that must never be issued in bulk (destructive group). */
+    private static final Set<String> BULK_FORBIDDEN_TYPES =
+            Set.of("device.wipe", "device.passcodeReset");
+
+    // =================================================================================================================
+    @ApiOperation(value = "Queue agent command for many devices",
+            notes = "Fans one opaque command out to a list of device ids (destructive types rejected).")
+    @POST
+    @Path("/bulk/commands")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response queueCommandBulk(AgentBulkCommandRequest req) {
+        if (req == null || req.getCommand() == null
+                || req.getCommand().getType() == null || req.getCommand().getType().trim().isEmpty()) {
+            return Response.ERROR("error.agent.command.invalid");
+        }
+        if (req.getDeviceIds() == null || req.getDeviceIds().isEmpty()) {
+            return Response.ERROR("error.agent.command.invalid");
+        }
+        final String type = req.getCommand().getType().trim();
+        if (BULK_FORBIDDEN_TYPES.contains(type)) {
+            return Response.ERROR("error.agent.command.bulkForbidden");
+        }
+
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+
+        int queued = 0;
+        List<Integer> skipped = new ArrayList<>();
+        for (Integer id : req.getDeviceIds()) {
+            if (id == null) { continue; }
+            Device device = unsecureDAO.getDeviceById(id);
+            if (device == null || device.getCustomerId() != customerId.get()) {
+                skipped.add(id);
+                continue;
+            }
+            AgentCommand command = new AgentCommand();
+            command.setDeviceNumber(device.getNumber());
+            command.setType(type);
+            command.setPayload(req.getCommand().getPayload());
+            command.setRequiresCapability(req.getCommand().getRequiresCapability());
+            command.setStatus("pending");
+            command.setCreatedAt(System.currentTimeMillis());
+            commandDAO.insert(command);
+            wakeHub.wake(device.getNumber(), "commands");
+            queued++;
+        }
+
+        logger.info("Bulk command {} queued for {} device(s), {} skipped", type, queued, skipped.size());
+        java.util.Map<String, Object> result = new java.util.HashMap<>();
+        result.put("queued", queued);
+        result.put("skipped", skipped);
+        return Response.OK(result);
     }
 
     // =================================================================================================================
