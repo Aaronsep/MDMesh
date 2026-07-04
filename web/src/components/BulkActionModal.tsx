@@ -4,6 +4,7 @@ import {
   buildInstallCommand, type AppInstallSpec,
 } from '../api/commands';
 import { listApplications, type Application } from '../api/applications';
+import { BulkKioskModal } from './BulkKioskModal';
 import { useToast } from '../ui/toast';
 
 // Only safe + disruptive actions run in bulk; the destructive group (passcode-reset, wipe) is excluded.
@@ -51,6 +52,7 @@ export function BulkActionModal({
   const [apps, setApps] = useState<Application[] | null>(null);
   const [appErr, setAppErr] = useState<string | null>(null);
   const [appQuery, setAppQuery] = useState('');
+  const [kioskOpen, setKioskOpen] = useState(false);
 
   useEffect(() => {
     if (!appPicker) return;
@@ -109,6 +111,17 @@ export function BulkActionModal({
 
   const showCatalog = !active && !appPicker;
 
+  // Kiosk-enter has its own Library picker; swap it in wholesale (no stacked backdrops).
+  if (kioskOpen) {
+    return (
+      <BulkKioskModal
+        deviceIds={deviceIds}
+        onClose={() => setKioskOpen(false)}
+        onDone={() => { onDone(); onClose(); }}
+      />
+    );
+  }
+
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -138,6 +151,12 @@ export function BulkActionModal({
               <h4 className="action-group-title">Apps</h4>
               <div className="action-grid">
                 <button className="btn" disabled={busy} onClick={() => setAppPicker(true)}>Install app…</button>
+              </div>
+            </section>
+            <section className="action-group">
+              <h4 className="action-group-title">Kiosk</h4>
+              <div className="action-grid">
+                <button className="btn btn-danger" disabled={busy} onClick={() => setKioskOpen(true)}>Enter kiosk…</button>
               </div>
             </section>
             <div className="modal-actions">
