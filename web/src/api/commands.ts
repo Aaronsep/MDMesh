@@ -287,11 +287,8 @@ export interface AppInstallSpec {
   parts?: { url: string; sha256?: string }[];
 }
 
-/** Queue an `app.install` for a device (the proven OTA path). */
-export async function installApp(
-  deviceId: number | string,
-  spec: AppInstallSpec,
-): Promise<QueuedCommand> {
+/** Build the agent-v1 `app.install` command request for a spec (single APK or split bundle). */
+export function buildInstallCommand(spec: AppInstallSpec): QueueCommandRequest {
   // A split bundle installs from `parts`; a single APK from `url`/`sha256`.
   const payload = spec.parts?.length
     ? {
@@ -307,11 +304,19 @@ export async function installApp(
         sha256: spec.sha256,
         runAfterInstall: spec.runAfterInstall ?? false,
       };
-  return queueCommand(deviceId, {
+  return {
     type: 'app.install',
     // The gate token is the prefixed appManagement key (app.<key>); the agent advertises
     // app.silentInstall. (Bare 'silentInstall' never matched — see proto/endpoints.md.)
     requiresCapability: 'app.silentInstall',
     payload: JSON.stringify(payload),
-  });
+  };
+}
+
+/** Queue an `app.install` for a device (the proven OTA path). */
+export async function installApp(
+  deviceId: number | string,
+  spec: AppInstallSpec,
+): Promise<QueuedCommand> {
+  return queueCommand(deviceId, buildInstallCommand(spec));
 }
