@@ -13,6 +13,7 @@ import {
   type ConfigurationLookup,
 } from '../api/devices';
 import { listConfigurations, type ConfigurationSummary } from '../api/configurations';
+import { BulkActionModal } from '../components/BulkActionModal';
 
 type View = 'grid' | 'list';
 type StatusFilter = 'all' | 'online' | 'offline';
@@ -72,6 +73,7 @@ export function DevicesPage() {
   const [allConfigs, setAllConfigs] = useState<ConfigurationSummary[]>([]);
   const [moveOpen, setMoveOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [target, setTarget] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -262,6 +264,9 @@ export function DevicesPage() {
       {selected.size > 0 && (
         <div className="bulk-bar">
           <span className="bulk-count">{selected.size} selected</span>
+          <button className="btn btn-sm" onClick={() => setActionsOpen(true)}>
+            Actions
+          </button>
           <button className="btn btn-sm" onClick={() => setMoveOpen(true)}>
             Change configuration
           </button>
@@ -347,6 +352,14 @@ export function DevicesPage() {
             </div>
           )}
         </>
+      )}
+
+      {actionsOpen && (
+        <BulkActionModal
+          deviceIds={[...selected]}
+          onClose={() => setActionsOpen(false)}
+          onDone={() => clearSel()}
+        />
       )}
 
       {moveOpen && (

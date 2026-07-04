@@ -1,0 +1,118 @@
+import { useState } from 'react';
+import {
+  ACTION_TEMPLATES, type CommandTemplateExt, bulkQueueCommand,
+} from '../api/commands';
+import { useToast } from '../ui/toast';
+
+// Only safe + disruptive actions run in bulk; the destructive group (passcode-reset, wipe) is excluded.
+// kiosk-enter is handled by a dedicated Phase-3 flow, so it is filtered out here too.
+const BULK_GROUPS: Array<{ id: 'safe' | 'disruptive'; title: string }> = [
+  { id: 'safe', title: 'Actions' },
+  { id: 'disruptive', title: 'Disruptive' },
+];
+
+function bulkable(t: CommandTemplateExt): boolean {
+  const g = t.group ?? 'safe';
+  if (g === 'destructive') return false;
+  if (t.key === 'kiosk-enter') return false; // Phase 3 owns this
+  return true;
+}
+
+export function BulkActionModal({
+  deviceIds, onClose, onDone,
+}: { deviceIds: number[]; onClose: () => void; onDone: () => void }) {
+  const toast = useToast();
+  const n = deviceIds.length;
+  const [active, setActive] = useState<CommandTemplateExt | null>(null);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+
+  async function run(t: CommandTemplateExt, vals: Record<string, string>) {
+    setBusy(true);
+    try {
+      const req = t.build ? t.build(vals) : t.request;
+      const res = await bulkQueueCommand(deviceIds, req);
+      const skipped = res.skipped?.length ?? 0;
+      toast.push('ok', `${t.label} queued`,
+        `Queued for ${res.queued} device${res.queued === 1 ? '' : 's'}` +
+        (skipped ? ` (${skipped} skipped)` : '') + '.');
+      onDone();
+      onClose();
+    } catch (e) {
+      toast.push('err', `${t.label} failed`, e instanceof Error ? e.message : '');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function onPick(t: CommandTemplateExt) {
+    if (t.params && t.params.length > 0) { setActive(t); setValues({}); return; }
+    void run(t, {});
+  }
+
+  const canSend = !active
+    ? false
+    : !active.params?.some((p) => p.required && !values[p.key]);
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Run action on {n} device{n === 1 ? '' : 's'}</h3>
+
+        {!active && BULK_GROUPS.map((g) => (
+          <section key={g.id} className="action-group">
+            <h4 className="action-group-title">{g.title}</h4>
+            <div className="action-grid">
+              {ACTION_TEMPLATES.filter(bulkable).filter((t) => (t.group ?? 'safe') === g.id).map((t) => (
+                <button
+                  key={t.key}
+                  className={`btn ${t.danger ? 'btn-danger' : ''}`}
+                  disabled={busy}
+                  title={t.description}
+                  onClick={() => onPick(t)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </section>
+        ))}
+
+        {active && (
+          <>
+            <h4>{active.label}</h4>
+            <p className="muted">{active.description}</p>
+            <p className="muted">This will run on <strong>{n}</strong> device{n === 1 ? '' : 's'}.</p>
+            {active.params?.map((p) => (
+              <label key={p.key} className="field">
+                <span>{p.label}</span>
+                <input
+                  type={p.kind === 'password' ? 'password' : p.kind === 'number' ? 'number' : 'text'}
+                  placeholder={p.placeholder}
+                  value={values[p.key] ?? ''}
+                  onChange={(e) => setValues((v) => ({ ...v, [p.key]: e.target.value }))}
+                />
+              </label>
+            ))}
+            <div className="modal-actions">
+              <button className="btn" disabled={busy} onClick={() => setActive(null)}>Back</button>
+              <button
+                className={`btn ${active.danger ? 'btn-danger' : 'btn-primary'}`}
+                disabled={busy || !canSend}
+                onClick={() => { void run(active, values); }}
+              >
+                {busy ? 'Queueing…' : `Run on ${n}`}
+              </button>
+            </div>
+          </>
+        )}
+
+        {!active && (
+          <div className="modal-actions">
+            <button className="btn" disabled={busy} onClick={onClose}>Close</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
