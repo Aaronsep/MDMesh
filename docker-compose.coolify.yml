@@ -75,9 +75,14 @@ services:
       # El dominio y las etiquetas de Traefik los pone Coolify (docker_compose_domains → caddy:80).
       # Caddy escucha HTTP plano; el TLS lo termina el proxy de Coolify.
       SITE_ADDRESS: ":80"
-      ACME_EMAIL: ""
+      # Nunca pide certificado (SITE_ADDRESS es :80), pero la directiva `email` del Caddyfile no
+      # admite valor vacío: sin esto Caddy no arranca.
+      ACME_EMAIL: ${ACME_EMAIL:-it@renopartes.com}
     expose:
       - "80"
+    # Publicado en el host para que el túnel de Cloudflare apunte aquí (mdm.renopartes.com).
+    ports:
+      - "6282:80"
     volumes:
       - caddy_data:/data
       - caddy_config:/config
