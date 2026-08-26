@@ -72,10 +72,10 @@ services:
       - server
       - supervisor
     environment:
-      # Coolify sustituye esta variable por el dominio configurado y coloca las etiquetas de Traefik.
-      - SERVICE_FQDN_CADDY_80
-      - SITE_ADDRESS=:80
-      - ACME_EMAIL=
+      # El dominio y las etiquetas de Traefik los pone Coolify (docker_compose_domains → caddy:80).
+      # Caddy escucha HTTP plano; el TLS lo termina el proxy de Coolify.
+      SITE_ADDRESS: ":80"
+      ACME_EMAIL: ""
     expose:
       - "80"
     volumes:
