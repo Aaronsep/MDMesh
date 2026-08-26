@@ -1,0 +1,129 @@
+# MDMesh — variante para Coolify (Reno).
+#
+# Diferencias contra docker-compose.yml de upstream:
+#   * Sin `image:` a GHCR: los paquetes de MDMesh-app son PRIVADOS (403), así que aquí se construye
+#     siempre desde fuente. Coolify etiqueta las imágenes por su cuenta.
+#   * Caddy escucha en :80 y NO pide certificado: el TLS lo termina el Traefik de Coolify
+#     (mdm.renopartes.com). Por eso tampoco publica puertos al host.
+#   * supervisor SIN /var/run/docker.sock ni ./:/project, y con APPLY_SUPPORTED=0: en un despliegue
+#     construido desde fuente el auto-update no puede aplicar nada (lo dice el propio DEPLOY.md), y
+#     dejar el socket montado le daría root del host a un servicio que no lo necesita. Se queda por
+#     el espejo verificado del APK (/files/agent.apk) y la página /recovery. Se actualiza con
+#     "Redeploy" en Coolify.
+#   * Se agrega el servicio `seed`: setup.sh siembra el admin con `docker compose exec` desde el
+#     host, cosa que Coolify no hace. Este contenedor espera a que Liquibase termine, siembra si la
+#     base está vacía, aplica post_seed.sql y se queda dormido (idempotente en cada redeploy).
+#   * Sin `cloudflared` (Coolify ya expone el dominio).
+
+services:
+  postgres:
+    image: postgres:14
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-mdmesh}
+      POSTGRES_USER: ${DB_USER:-mdmesh}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-mdmesh} -d ${DB_NAME:-mdmesh}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  server:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-mdmesh}
+      DB_USER: ${DB_USER:-mdmesh}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+      BASE_URL: ${BASE_URL:?set BASE_URL}
+      HASH_SECRET: ${HASH_SECRET:?set HASH_SECRET}
+      SECURE_ENROLLMENT: ${SECURE_ENROLLMENT:-0}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-25}
+      SMTP_FROM: ${SMTP_FROM:-mdm@localhost}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    expose:
+      - "8080"
+    volumes:
+      - mdmeshdata:/opt/mdmesh
+
+  caddy:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        VITE_AGENT_PACKAGE: ${VITE_AGENT_PACKAGE:-}
+        VITE_AGENT_CHECKSUM: ${VITE_AGENT_CHECKSUM:-}
+        VITE_AGENT_APK_URL: ${VITE_AGENT_APK_URL:-}
+        VITE_APP_VERSION: ${VITE_APP_VERSION:-coolify}
+    restart: unless-stopped
+    depends_on:
+      - server
+      - supervisor
+    environment:
+      # Coolify sustituye esta variable por el dominio configurado y coloca las etiquetas de Traefik.
+      - SERVICE_FQDN_CADDY_80
+      - SITE_ADDRESS=:80
+      - ACME_EMAIL=
+    expose:
+      - "80"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+  supervisor:
+    build:
+      context: .
+      dockerfile: docker/supervisor.Dockerfile
+    restart: unless-stopped
+    environment:
+      GITHUB_REPO: ${GITHUB_REPO:-MDMesh-app/MDMesh}
+      UPDATE_CHANNEL: ${UPDATE_CHANNEL:-stable}
+      POLL_INTERVAL_HOURS: ${POLL_INTERVAL_HOURS:-6}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      CURRENT_VERSION: ${CURRENT_VERSION:-0.0.0}
+      # Este despliegue se construye desde fuente: no puede auto-aplicar imágenes.
+      APPLY_SUPPORTED: "0"
+      AUTO_UPDATE: "0"
+    expose:
+      - "9000"
+    volumes:
+      - backups:/backups
+
+  seed:
+    build:
+      context: .
+      dockerfile: docker/seed.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${DB_NAME:-mdmesh}
+      PGUSER: ${DB_USER:-mdmesh}
+      PGPASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@localhost}
+      # Sólo se usa si la base está vacía. Después de sembrar, cámbiala en la consola.
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD}
+    volumes:
+      - mdmeshdata:/srv/mdmesh:ro
+
+volumes:
+  pgdata:
+  mdmeshdata:
+  caddy_data:
+  caddy_config:
+  backups:
