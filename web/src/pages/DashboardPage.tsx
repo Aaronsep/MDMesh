@@ -10,12 +10,12 @@ import type { DeviceView, ConfigurationLookup } from '../api/devices';
 type Bucket = 'online' | 'attention' | 'offline';
 
 const EVENT_VERBS: Record<string, string> = {
-  boot: 'booted',
-  appInstalled: 'installed an app',
-  appUninstalled: 'removed an app',
-  commandResult: 'ran a command',
-  connectivityChange: 'changed network',
-  lowBattery: 'reported low battery',
+  boot: 'se reinició',
+  appInstalled: 'instaló una app',
+  appUninstalled: 'quitó una app',
+  commandResult: 'ejecutó un comando',
+  connectivityChange: 'cambió de red',
+  lowBattery: 'reportó batería baja',
   enrolled: 'enrolled',
 };
 
@@ -173,7 +173,7 @@ export function DashboardPage() {
   }, [loading, devices]);
 
   return (
-    <AppShell title="Overview">
+    <AppShell title="Resumen">
       <div className="page-head">
         <h1>Resumen</h1>
       </div>
@@ -183,21 +183,21 @@ export function DashboardPage() {
       <div className="panel fleet">
         <div className="fleet-big">
           {total}
-          <small>{total === 1 ? 'device' : 'devices'}</small>
+          <small>{total === 1 ? 'equipo' : 'equipos'}</small>
         </div>
         <div className="fleet-barwrap">
           <div className="fleet-legend">
             <span>
               <i style={{ background: 'var(--online)' }} />
-              {counts.online} online
+              {counts.online} en línea
             </span>
             <span>
               <i style={{ background: 'var(--warn)' }} />
-              {counts.attention} need attention
+              {counts.attention} requieren atención
             </span>
             <span>
               <i style={{ background: 'var(--offline)' }} />
-              {counts.offline} offline
+              {counts.offline} desconectados
             </span>
           </div>
           <div className="fleet-bar">
@@ -216,7 +216,7 @@ export function DashboardPage() {
               className="btn btn-sm btn-ghost"
               onClick={() => navigate('/devices')}
             >
-              All devices →
+              Ver todos →
             </button>
           </div>
           <div className="ov-listpad">
@@ -276,7 +276,7 @@ export function DashboardPage() {
               ) : attention.length === 0 ? (
                 <div className="empty">
                   <span className="label">Todo en orden</span>
-                  Every device is online.
+                  Todos los equipos están en línea.
                 </div>
               ) : (
                 attention.map((d) => {

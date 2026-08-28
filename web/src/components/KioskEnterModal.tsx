@@ -208,10 +208,16 @@ export function KioskEnterModal({
   }
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
-      <div className="modal kiosk-modal">
-        <h3>Entrar a kiosko</h3>
-        <p className="muted">Elige las apps a las que se bloquea el equipo — de tu biblioteca o escaneando el equipo. (Chrome se incluye solo, es el motor del BackOffice.)</p>
+    <div className="drawer-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="drawer kiosk-drawer" onClick={(e) => e.stopPropagation()}>
+        <div className="drawer-head">
+          <div>
+            <h3>Entrar a kiosko</h3>
+            <p className="drawer-sub">Elige las apps a las que se bloquea el equipo — de tu biblioteca o escaneando el equipo. (Chrome se incluye solo, es el motor del BackOffice.)</p>
+          </div>
+          <button type="button" className="drawer-x" onClick={onClose} aria-label="Cerrar">×</button>
+        </div>
+        <div className="drawer-body">
 
         <div className="kiosk-source">
           <button className={`seg-btn ${source === 'library' ? 'on' : ''}`} onClick={() => setSource('library')}>Biblioteca</button>
@@ -299,7 +305,9 @@ export function KioskEnterModal({
           </label>
         </div>
 
-        <div className="modal-actions">
+        </div>
+
+        <div className="drawer-foot">
           <button className="btn" disabled={busy} onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" disabled={busy || !canApply} onClick={() => { void apply(); }}>
             {busy ? 'Enviando…' : `Entrar a kiosko (${selected.size})`}

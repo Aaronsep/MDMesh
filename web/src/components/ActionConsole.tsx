@@ -58,11 +58,11 @@ export function ActionConsole({ device }: { device: Device }) {
       const req = t.build ? t.build(values) : t.request;
       const res = await queueCommand(device.number, req);
       const id = (res?.id as number | string | undefined) ?? '';
-      toast.push('ok', `${t.label} queued`, id ? `Command ${id}` : '');
+      toast.push('ok', `${t.label} encolado`, id ? `Comando ${id}` : '');
       await forceSync(device.number).catch(() => undefined); // nudge (no-op until MQTT lands)
       await refresh();
     } catch (e) {
-      toast.push('err', `${t.label} failed`, e instanceof Error ? e.message : '');
+      toast.push('err', `${t.label} falló`, e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -197,11 +197,14 @@ function DeviceStatePanel({ state }: { state: DeviceState | null }) {
 
 function CommandTimeline({ items }: { items: CommandHistoryItem[] }) {
   if (!items.length) return null;
+  const shown = items.slice(0, 40);
   return (
     <section className="timeline">
-      <h3 className="action-group-title">Comandos recientes</h3>
+      <h3 className="action-group-title">
+        Comandos recientes{items.length > shown.length ? ` · ${shown.length} de ${items.length}` : ''}
+      </h3>
       <ul>
-        {items.map((c) => (
+        {shown.map((c) => (
           <li key={String(c.id)} className={`timeline-item status-${c.status}`}>
             <span className="t-type">{c.type}</span>
             <span className={`t-status status-${c.status}`}>{c.status}</span>

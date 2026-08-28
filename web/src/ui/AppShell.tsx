@@ -32,6 +32,14 @@ const NAV: NavEntry[] = [
   { to: '/settings', label: 'Ajustes', Icon: IconSettings },
 ];
 
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/[\s@._-]+/).filter(Boolean);
+  if (!parts.length) return 'U';
+  const a = parts[0][0] ?? '';
+  const b = parts.length > 1 ? parts[parts.length - 1][0] ?? '' : '';
+  return (a + b).toUpperCase() || 'U';
+}
+
 export function AppShell({
   title,
   children,
@@ -45,6 +53,8 @@ export function AppShell({
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
 
+  const userName = user?.login || user?.name || 'admin';
+
   return (
     <div className="shell">
       <div
@@ -53,40 +63,56 @@ export function AppShell({
         aria-hidden="true"
       />
       <aside className={`sidebar ${open ? 'open' : ''}`}>
-        <div className="sidebar-brand">
-          <img className="reno-logo" src="/reno-logo.png" alt="Reno" />
+        {/* Header de marca — pastilla estilo BackOffice (tile + nombre). */}
+        <div className="sb-header">
+          <div className="sb-brand">
+            <span className="sb-tile">
+              <img className="sb-deer" src="/reno-deer.png" alt="" aria-hidden="true" />
+            </span>
+            <span className="sb-brand-text">
+              <span className="sb-brand-name">RENO MDM</span>
+              <span className="sb-brand-sub">Consola de flotilla</span>
+            </span>
+          </div>
         </div>
-        <nav className="nav">
+
+        <nav className="sb-nav">
           {NAV.map(({ to, label, Icon }) => (
             <NavLink
               key={to}
               to={to}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+              className={({ isActive }) => `sb-item ${isActive ? 'active' : ''}`}
               onClick={close}
             >
-              <Icon className="ico" />
-              <span>{label}</span>
+              <span className="sb-mark" aria-hidden="true" />
+              <Icon className="sb-ico" />
+              <span className="sb-label">{label}</span>
             </NavLink>
           ))}
         </nav>
-        <div className="sidebar-foot">
-          <div className="sidebar-user">
-            <span className="who">
-              {user?.login || user?.name || 'admin@localhost'}
+
+        <div className="sb-footer">
+          <div className="sb-user">
+            <span className="sb-avatar">{initialsOf(userName)}</span>
+            <span className="sb-user-text">
+              <span className="sb-user-name">{userName}</span>
+              <span className="sb-user-role">Administrador</span>
             </span>
           </div>
-          <button
-            className="btn btn-ghost"
-            onClick={toggleTheme}
-            aria-label={`Cambiar a tema ${theme === 'dark' ? 'claro' : 'oscuro'}`}
-          >
-            {theme === 'dark' ? <IconSun className="ico" /> : <IconMoon className="ico" />}
-            <span style={{ marginLeft: 8 }}>{theme === 'dark' ? 'Claro' : 'Oscuro'}</span>
-          </button>
-          <button className="btn btn-ghost" onClick={() => void signOut()}>
-            <IconSignOut className="ico" />
-            <span style={{ marginLeft: 8 }}>Salir</span>
-          </button>
+          <div className="sb-actions">
+            <button
+              className="sb-btn"
+              onClick={toggleTheme}
+              aria-label={`Cambiar a tema ${theme === 'dark' ? 'claro' : 'oscuro'}`}
+            >
+              {theme === 'dark' ? <IconSun className="sb-ico" /> : <IconMoon className="sb-ico" />}
+              <span>{theme === 'dark' ? 'Claro' : 'Oscuro'}</span>
+            </button>
+            <button className="sb-btn" onClick={() => void signOut()}>
+              <IconSignOut className="sb-ico" />
+              <span>Salir</span>
+            </button>
+          </div>
         </div>
       </aside>
 

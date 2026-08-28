@@ -100,9 +100,9 @@ function NameField({
   }
 
   return (
-    <button type="button" className="dd-name" onClick={() => setEditing(true)} title="Rename this device">
+    <button type="button" className="dd-name" onClick={() => setEditing(true)} title="Renombrar equipo">
       <span className={`mfr ${device.description ? '' : 'muted'}`}>
-        {device.description || 'Add a name'}
+        {device.description || 'Agregar un nombre'}
       </span>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M12 20h9" />
@@ -141,7 +141,7 @@ export function DeviceDetailPage() {
       }
       setConfigs(res.configurations ?? {});
       setDevice(found);
-      if (!found) setError('Device not found.');
+      if (!found) setError('Equipo no encontrado.');
     } catch (err) {
       if (err instanceof ApiError && err.httpStatus === 0)
         setError('Cannot reach the server.');
@@ -235,10 +235,10 @@ export function DeviceDetailPage() {
 
   if (loading) {
     return (
-      <AppShell title="Device">
+      <AppShell title="Equipo">
         <div className="panel">
           <div className="empty">
-            <span className="spin" /> Loading device…
+            <span className="spin" /> Cargando equipo…
           </div>
         </div>
       </AppShell>
@@ -253,7 +253,7 @@ export function DeviceDetailPage() {
             Devices
           </a>
         </div>
-        <div className="banner banner-alert">{error ?? 'Device not found.'}</div>
+        <div className="banner banner-alert">{error ?? 'Equipo no encontrado.'}</div>
       </AppShell>
     );
   }
@@ -276,15 +276,15 @@ export function DeviceDetailPage() {
     { k: 'IMEI', v: orDash(teleStr(idn.imei) ?? device.imei), mono: true },
   ];
   const networkRows: Row[] = [
-    { k: 'Type', v: orDash(teleStr(dyn.networkType) ?? teleStr(dyn.network)) },
-    { k: 'Local IP', v: orDash(teleStr(dyn.localIp) ?? teleStr(hw.localIp)), mono: true },
-    { k: 'Public IP', v: orDash(teleStr((tele as Record<string, unknown> | null)?.publicIp) ?? device.publicIp), mono: true },
+    { k: 'Tipo', v: orDash(teleStr(dyn.networkType) ?? teleStr(dyn.network)) },
+    { k: 'IP local', v: orDash(teleStr(dyn.localIp) ?? teleStr(hw.localIp)), mono: true },
+    { k: 'IP pública', v: orDash(teleStr((tele as Record<string, unknown> | null)?.publicIp) ?? device.publicIp), mono: true },
   ];
   const managementRows: Row[] = [
-    { k: 'Config', v: configName },
-    { k: 'Agent', v: orDash(ds?.agentVersion ?? device.launcherVersion) },
-    { k: 'MDM mode', v: onOff(sec.isDeviceOwner, device.mdmMode) },
-    { k: 'Enrolled', v: fmtDateTime(device.enrollTime) },
+    { k: 'Configuración', v: configName },
+    { k: 'Agente', v: orDash(ds?.agentVersion ?? device.launcherVersion) },
+    { k: 'Modo MDM', v: onOff(sec.isDeviceOwner, device.mdmMode) },
+    { k: 'Alta', v: fmtDateTime(device.enrollTime) },
   ];
 
   const loc = dyn.location as
@@ -294,7 +294,7 @@ export function DeviceDetailPage() {
   const locationRows: Row[] = hasFix
     ? [
         {
-          k: 'Coordinates',
+          k: 'Coordenadas',
           v: (
             <a href={`https://www.google.com/maps?q=${loc!.lat},${loc!.lon}`} target="_blank" rel="noopener noreferrer">
               {loc!.lat!.toFixed(5)}, {loc!.lon!.toFixed(5)} ↗
@@ -302,25 +302,25 @@ export function DeviceDetailPage() {
           ),
           mono: true,
         },
-        { k: 'Accuracy', v: loc!.accuracyM != null ? `±${Math.round(loc!.accuracyM)} m` : '—' },
-        { k: 'Source', v: orDash(loc!.provider) },
-        { k: 'Fix age', v: loc!.capturedAt ? fmtRelative(loc!.capturedAt) : '—' },
+        { k: 'Precisión', v: loc!.accuracyM != null ? `±${Math.round(loc!.accuracyM)} m` : '—' },
+        { k: 'Fuente', v: orDash(loc!.provider) },
+        { k: 'Antigüedad', v: loc!.capturedAt ? fmtRelative(loc!.capturedAt) : '—' },
       ]
-    : [{ k: 'Location', v: 'No fix reported yet' }];
+    : [{ k: 'Ubicación', v: 'Sin ubicación reportada aún' }];
 
   const groups: Array<{ title: string; rows: Row[] }> = [
-    { title: 'Status', rows: statusRows },
-    { title: 'Location', rows: locationRows },
+    { title: 'Estado', rows: statusRows },
+    { title: 'Ubicación', rows: locationRows },
     { title: 'Hardware', rows: hardwareRows },
-    { title: 'Network', rows: networkRows },
-    { title: 'Management', rows: managementRows },
+    { title: 'Red', rows: networkRows },
+    { title: 'Gestión', rows: managementRows },
   ];
 
   return (
     <AppShell title={device.number}>
       <div className="crumb">
         <a href="/devices" onClick={(e) => { e.preventDefault(); navigate('/devices'); }}>
-          Devices
+          Equipos
         </a>{' '}
         / {device.number}
       </div>
@@ -348,7 +348,7 @@ export function DeviceDetailPage() {
               Bloquear
             </button>
             <button className="sec" disabled={busy} onClick={() => void installConfigApps()}>
-              Instalar apps de config
+              Instalar apps
             </button>
           </div>
 
@@ -372,13 +372,13 @@ export function DeviceDetailPage() {
               Control
             </button>
             <button className={tab === 'telemetry' ? 'on' : ''} onClick={() => setTab('telemetry')}>
-              Telemetry
+              Telemetría
             </button>
             <button className={tab === 'events' ? 'on' : ''} onClick={() => setTab('events')}>
-              Events
+              Eventos
             </button>
             <button className={tab === 'location' ? 'on' : ''} onClick={() => setTab('location')}>
-              Location
+              Ubicación
             </button>
           </div>
 
