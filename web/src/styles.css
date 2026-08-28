@@ -2978,3 +2978,90 @@ body.no-scroll { overflow: hidden; }
   .dev-row { grid-template-columns: 1fr auto; }
   .dev-row .lc { display: none; }
 }
+
+/* ============================================================================
+   Botones — línea BackOffice: RELLENOS con jerarquía, no outlines flacos.
+   safe = secondary (relleno suave) · disruptive = outline neutro ·
+   destructive = rojo sólido.  (2026-08-28)
+   ========================================================================= */
+.btn { box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05); font-weight: 500; }
+.btn-primary, .btn-dark { box-shadow: 0 1px 2px rgba(7, 18, 129, 0.18); }
+.btn-ghost { box-shadow: none; }
+
+/* Rojo sólido (modales de confirmación, borrar en bulk). */
+.btn-danger {
+  background: var(--danger); border-color: var(--danger); color: #fff;
+}
+.btn-danger:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--danger) 86%, black);
+  border-color: color-mix(in oklab, var(--danger) 86%, black);
+}
+
+/* Rejilla de acciones */
+.action-grid { gap: 10px; }
+.action-grid .btn {
+  min-width: 180px; justify-content: center;
+  height: 40px; padding: 0 18px; border-radius: 9px; font-size: 13px; font-weight: 500;
+}
+/* safe → relleno suave (secondary) */
+.action-grid .btn.act-safe {
+  background: var(--surface-2); border-color: transparent; color: var(--text);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+.action-grid .btn.act-safe:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--surface-2) 78%, var(--brand-accent) 12%);
+  color: var(--text);
+}
+/* disruptive → outline neutro, hover con marca */
+.action-grid .btn.act-disruptive {
+  background: var(--surface); border: 1px solid var(--border); color: var(--text);
+}
+.action-grid .btn.act-disruptive:hover:not(:disabled) {
+  border-color: var(--brand-accent); color: var(--brand-accent);
+  background: color-mix(in oklab, var(--brand-accent) 7%, var(--surface));
+}
+/* destructive → rojo sólido */
+.action-grid .btn.act-destructive {
+  background: var(--danger); border-color: var(--danger); color: #fff;
+  box-shadow: 0 1px 2px rgba(194, 64, 63, 0.22);
+}
+.action-grid .btn.act-destructive:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--danger) 86%, black);
+  border-color: color-mix(in oklab, var(--danger) 86%, black);
+}
+
+/* Rail de info: más compacto y legible; valores en fuente tabular. */
+.detail-rail .grp { margin: 20px 0 6px; }
+.detail-rail .row { padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+.detail-rail .row .k { font-size: 12.5px; }
+.detail-rail .row .v { font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* ============================================================================
+   Ajustes con estado: filas con control segmentado (menos botones, más claro).
+   ========================================================================= */
+.setting-list { display: flex; flex-direction: column; gap: 6px; }
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+}
+.setting-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.setting-name { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.setting-hint { font-size: 12px; color: var(--muted); }
+.danger-title { color: var(--danger); }
+
+.seg-ctl {
+  display: inline-flex; padding: 3px; gap: 3px; flex: none;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px;
+}
+.seg-ctl button {
+  border: 0; background: transparent; color: var(--muted); font-family: var(--font-sans);
+  font-size: 12.5px; font-weight: 500; padding: 6px 14px; border-radius: 7px; cursor: pointer;
+  white-space: nowrap; transition: background 0.12s ease, color 0.12s ease;
+}
+.seg-ctl button:hover:not(:disabled):not(.on) { color: var(--text); }
+.seg-ctl button.on {
+  background: var(--surface); color: var(--ink); font-weight: 600;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+[data-theme='dark'] .seg-ctl button.on { background: var(--ink); color: var(--on-ink); }
+.seg-ctl button:disabled { opacity: 0.5; cursor: default; }

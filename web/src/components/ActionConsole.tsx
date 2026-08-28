@@ -9,12 +9,6 @@ import { KioskEnterModal } from './KioskEnterModal';
 
 type Device = { number: string };
 
-const GROUPS: Array<{ id: 'safe' | 'disruptive' | 'destructive'; title: string }> = [
-  { id: 'safe', title: 'Acciones' },
-  { id: 'disruptive', title: 'Disruptivas' },
-  { id: 'destructive', title: 'Destructivas' },
-];
-
 export function ActionConsole({ device }: { device: Device }) {
   const toast = useToast();
   const [state, setState] = useState<DeviceState | null>(null);
@@ -24,6 +18,15 @@ export function ActionConsole({ device }: { device: Device }) {
   const [confirmText, setConfirmText] = useState('');
   const [busy, setBusy] = useState(false);
   const [kioskOpen, setKioskOpen] = useState(false);
+  const [ringing, setRinging] = useState(false);
+  const [locMode, setLocMode] = useState<string | null>(null);
+
+  const byKey = (k: string) => ACTION_TEMPLATES.find((t) => t.key === k)!;
+  const toggleRing = () => {
+    const t = byKey(ringing ? 'ring-stop' : 'ring');
+    setRinging((v) => !v);
+    void onClick(t);
+  };
 
   const refresh = useCallback(async () => {
     const [st, hist] = await Promise.all([
@@ -106,24 +109,84 @@ export function ActionConsole({ device }: { device: Device }) {
 
       <DeviceStatePanel state={state} />
 
-      {GROUPS.map((g) => (
-        <section key={g.id} className="action-group">
-          <h3 className="action-group-title">{g.title}</h3>
-          <div className="action-grid">
-            {ACTION_TEMPLATES.filter((t) => (t.group ?? 'safe') === g.id).map((t) => (
+      {/* Mensajes / alertas / sonido */}
+      <section className="action-group">
+        <h3 className="action-group-title">Acciones rápidas</h3>
+        <div className="action-grid">
+          <button className="btn act-safe" disabled={busy} onClick={() => { void onClick(byKey('lockscreen-message')); }}>
+            Mensaje en pantalla
+          </button>
+          <button className="btn act-safe" disabled={busy} onClick={() => { void onClick(byKey('alert')); }}>
+            Enviar alerta
+          </button>
+          <button className={`btn ${ringing ? 'act-destructive' : 'act-safe'}`} disabled={busy} onClick={toggleRing}>
+            {ringing ? 'Detener sonido' : 'Hacer sonar'}
+          </button>
+        </div>
+      </section>
+
+      {/* Ajustes con estado (segmentados) */}
+      <section className="action-group">
+        <h3 className="action-group-title">Ajustes</h3>
+        <div className="setting-list">
+          <div className="setting-row">
+            <div className="setting-info">
+              <span className="setting-name">Conectividad</span>
+              <span className="setting-hint">Ahorro de batería vs. conexión constante</span>
+            </div>
+            <div className="seg-ctl">
               <button
-                key={t.key}
-                className={`btn ${t.danger ? 'btn-danger' : ''}`}
+                className={state?.powerMode === 'adaptive' ? 'on' : ''}
                 disabled={busy}
-                title={t.description}
-                onClick={() => { void onClick(t); }}
-              >
-                {t.label}
-              </button>
-            ))}
+                onClick={() => { void onClick(byKey('power-adaptive')); }}
+              >Ahorro</button>
+              <button
+                className={state?.powerMode === 'alwaysOn' ? 'on' : ''}
+                disabled={busy}
+                onClick={() => { void onClick(byKey('power-always')); }}
+              >Siempre activa</button>
+            </div>
           </div>
-        </section>
-      ))}
+          <div className="setting-row">
+            <div className="setting-info">
+              <span className="setting-name">Ubicación</span>
+              <span className="setting-hint">Precisión del GPS al reportar</span>
+            </div>
+            <div className="seg-ctl">
+              <button
+                className={locMode === 'passive' ? 'on' : ''}
+                disabled={busy}
+                onClick={() => { setLocMode('passive'); void onClick(byKey('location-passive')); }}
+              >Ahorro</button>
+              <button
+                className={locMode === 'active' ? 'on' : ''}
+                disabled={busy}
+                onClick={() => { setLocMode('active'); void onClick(byKey('location-active')); }}
+              >Precisa</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Control del equipo */}
+      <section className="action-group">
+        <h3 className="action-group-title">Control</h3>
+        <div className="action-grid">
+          <button className="btn act-disruptive" disabled={busy} onClick={() => { void onClick(byKey('lock')); }}>Bloquear pantalla</button>
+          <button className="btn act-disruptive" disabled={busy} onClick={() => { void onClick(byKey('reboot')); }}>Reiniciar</button>
+          <button className="btn act-disruptive" disabled={busy} onClick={() => { void onClick(byKey('kiosk-enter')); }}>Entrar a kiosko</button>
+          <button className="btn act-disruptive" disabled={busy} onClick={() => { void onClick(byKey('kiosk-exit')); }}>Salir del kiosko</button>
+        </div>
+      </section>
+
+      {/* Zona de riesgo */}
+      <section className="action-group">
+        <h3 className="action-group-title danger-title">Zona de riesgo</h3>
+        <div className="action-grid">
+          <button className="btn act-destructive" disabled={busy} onClick={() => { void onClick(byKey('passcode-reset')); }}>Restablecer PIN</button>
+          <button className="btn act-destructive" disabled={busy} onClick={() => { void onClick(byKey('wipe')); }}>Reset de fábrica</button>
+        </div>
+      </section>
 
       <CommandTimeline items={history} />
 
