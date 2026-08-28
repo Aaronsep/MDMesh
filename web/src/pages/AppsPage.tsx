@@ -24,10 +24,10 @@ interface Source {
 }
 
 const SOURCES: Source[] = [
-  { id: 'library', label: 'Library', enabled: true, tip: 'Apps already uploaded to this MDMesh server.' },
-  { id: 'custom', label: 'Custom APK', enabled: true, tip: 'Deploy any APK by file or URL — including APKMirror / APKPure downloads.' },
-  { id: 'fdroid', label: 'F-Droid', enabled: true, tip: 'Search the F-Droid open-source catalogue and deploy straight from f-droid.org.' },
-  { id: 'play', label: 'Play Store', enabled: false, tip: 'Download via a Google account (Aurora-style dispenser). Not built yet.' },
+  { id: 'library', label: 'Biblioteca', enabled: true, tip: 'Apps ya subidas a este servidor MDMesh.' },
+  { id: 'custom', label: 'APK propio', enabled: true, tip: 'Despliega cualquier APK por archivo o URL — incluye descargas de APKMirror / APKPure.' },
+  { id: 'fdroid', label: 'F-Droid', enabled: true, tip: 'Busca en el catálogo open-source de F-Droid y despliega directo desde f-droid.org.' },
+  { id: 'play', label: 'Play Store', enabled: false, tip: 'Descarga con una cuenta de Google (tipo Aurora). Aún no está listo.' },
 ];
 
 // APKMirror / APKPure have no usable API and forbid embedding — they're search
@@ -79,7 +79,7 @@ export function AppsPage() {
         <h1>Apps</h1>
       </div>
 
-      <span className="seg modes" role="tablist" aria-label="App source" style={{ marginBottom: 16 }}>
+      <span className="seg modes" role="tablist" aria-label="Fuente de apps" style={{ marginBottom: 16 }}>
         {SOURCES.map((s) => (
           <span className="tip" key={s.id}>
             <button
@@ -91,7 +91,7 @@ export function AppsPage() {
               aria-describedby={`src-${s.id}`}
             >
               {s.label}
-              {!s.enabled && <span className="src-soon">soon</span>}
+              {!s.enabled && <span className="src-soon">pronto</span>}
             </button>
             <span className="tip-pop" role="tooltip" id={`src-${s.id}`}>
               {s.tip}
@@ -104,7 +104,7 @@ export function AppsPage() {
         <LibrarySource onDeploy={(app) => {
           resolveApp(app)
             .then(setDeploy)
-            .catch((e) => toast.push('err', 'Cannot deploy', e instanceof Error ? e.message : ''));
+            .catch((e) => toast.push('err', 'No se pudo desplegar', e instanceof Error ? e.message : ''));
         }} />
       )}
       {source === 'custom' && <CustomSource onDeploy={setDeploy} />}
@@ -140,8 +140,8 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
   useEffect(() => {
     let cancelled = false;
     listApplications()
-      .then((list) => !cancelled && setApps(list.filter((a) => (a.type ?? 'app') !== 'web')))
-      .catch(() => !cancelled && (setApps([]), setError('Could not load the app library.')));
+      .then((list) => !cancelled && setApps(list.filter((a) => (a.type ?? 'app') !== 'web' && (!!a.url || !!a.parts))))
+      .catch(() => !cancelled && (setApps([]), setError('No se pudo cargar la biblioteca.')));
     return () => {
       cancelled = true;
     };
@@ -161,18 +161,18 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
           <circle cx="11" cy="11" r="7" />
           <path d="M21 21l-4-4" />
         </svg>
-        <input type="search" placeholder="Search apps" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input type="search" placeholder="Buscar apps" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
 
       {error && <div className="banner banner-alert">{error}</div>}
 
       {apps === null ? (
-        <div className="panel"><div className="empty"><span className="spin" /> Loading apps…</div></div>
+        <div className="panel"><div className="empty"><span className="spin" /> Cargando apps…</div></div>
       ) : shown.length === 0 ? (
         <div className="panel">
           <div className="empty">
-            <span className="label">No apps</span>
-            {apps.length === 0 ? 'No apps are in the library yet.' : 'No apps match your search.'}
+            <span className="label">Sin apps</span>
+            {apps.length === 0 ? 'Aún no hay apps en la biblioteca.' : 'Ninguna app coincide con tu búsqueda.'}
           </div>
         </div>
       ) : (
@@ -189,7 +189,7 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
               <div className="app-foot">
                 <span className="app-ver">{a.version ? `v${a.version}` : '—'}</span>
                 <button className="btn btn-sm btn-primary" onClick={() => onDeploy(a)}>
-                  Deploy
+                  Desplegar
                 </button>
               </div>
             </div>
@@ -605,7 +605,7 @@ function FDroidSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
               <div className="app-foot">
                 <span className="app-ver">{a.versionName ? `v${a.versionName}` : `v${a.versionCode}`}</span>
                 <button className="btn btn-sm btn-primary" onClick={() => deploy(a)}>
-                  Deploy
+                  Desplegar
                 </button>
               </div>
             </div>

@@ -65,7 +65,7 @@ export function KioskEnterModal({
   device, onClose, onQueued,
 }: { device: Device; onClose: () => void; onQueued: () => void }) {
   const toast = useToast();
-  const [source, setSource] = useState<Source>('library');
+  const [source, setSource] = useState<Source>('device');
   const [query, setQuery] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [mode, setMode] = useState<Mode>('launcher');
@@ -98,7 +98,7 @@ export function KioskEnterModal({
   useEffect(() => {
     listApplications()
       .then(setLib)
-      .catch((e) => setLibErr(e instanceof Error ? e.message : 'Failed to load library'));
+      .catch((e) => setLibErr(e instanceof Error ? e.message : 'No se pudo cargar la biblioteca'));
   }, []);
 
   // First time the Device tab is opened, load the last saved scan (from command history) so apps
@@ -142,8 +142,8 @@ export function KioskEnterModal({
       // uploaded/web apps first. (Most catalogue entries carry the "system" flag, so hiding them by
       // default would leave the list nearly empty.)
       return (lib ?? [])
-        .filter((a) => a.pkg)
-        .map((a) => ({ pkg: a.pkg, label: a.name || a.pkg, iconUrl: a.icon || undefined, system: appCategory(a) === 'system', badge: appCategory(a) }))
+        .filter((a) => a.pkg && appCategory(a) !== 'system')
+        .map((a) => ({ pkg: a.pkg, label: a.name || a.pkg, iconUrl: a.icon || undefined, system: false as boolean, badge: appCategory(a) }))
         .filter((i) => match(i.label, i.pkg))
         .sort((a, b) => Number(a.system) - Number(b.system) || a.label.localeCompare(b.label));
     }
@@ -197,11 +197,11 @@ export function KioskEnterModal({
     setBusy(true);
     try {
       await queueCommand(device.number, { type: 'kiosk.enter', payload: JSON.stringify(payload) });
-      toast.push('ok', 'Enter kiosk queued', `${pkgs.length} app${pkgs.length === 1 ? '' : 's'}`);
+      toast.push('ok', 'Kiosko encolado', `${pkgs.length} app${pkgs.length === 1 ? '' : 's'}`);
       onQueued();
       onClose();
     } catch (e) {
-      toast.push('err', 'Enter kiosk failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'Falló entrar a kiosko', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -210,33 +210,33 @@ export function KioskEnterModal({
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal kiosk-modal">
-        <h3>Enter kiosk</h3>
-        <p className="muted">Pick the apps to lock the device to — from your library, or by scanning the device.</p>
+        <h3>Entrar a kiosko</h3>
+        <p className="muted">Elige las apps a las que se bloquea el equipo — de tu biblioteca o escaneando el equipo. (Chrome se incluye solo, es el motor del BackOffice.)</p>
 
         <div className="kiosk-source">
-          <button className={`seg-btn ${source === 'library' ? 'on' : ''}`} onClick={() => setSource('library')}>Library</button>
-          <button className={`seg-btn ${source === 'device' ? 'on' : ''}`} onClick={() => setSource('device')}>Device apps</button>
+          <button className={`seg-btn ${source === 'library' ? 'on' : ''}`} onClick={() => setSource('library')}>Biblioteca</button>
+          <button className={`seg-btn ${source === 'device' ? 'on' : ''}`} onClick={() => setSource('device')}>Apps del equipo</button>
         </div>
 
         <div className="kiosk-mode">
-          <label><input type="radio" checked={mode === 'launcher'} onChange={() => switchMode('launcher')} /> Allowed apps (launcher grid)</label>
-          <label><input type="radio" checked={mode === 'single'} onChange={() => switchMode('single')} /> Pin a single app</label>
+          <label><input type="radio" checked={mode === 'launcher'} onChange={() => switchMode('launcher')} /> Apps permitidas (rejilla)</label>
+          <label><input type="radio" checked={mode === 'single'} onChange={() => switchMode('single')} /> Fijar una sola app</label>
         </div>
 
         <div className="kiosk-toolbar">
-          <input className="kiosk-search" placeholder="Search apps…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className="kiosk-search" placeholder="Buscar apps…" value={query} onChange={(e) => setQuery(e.target.value)} />
           {source === 'device' && (
             <label className="kiosk-toggle">
-              <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Show all (incl. system)
+              <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Mostrar todas (incl. sistema)
             </label>
           )}
           {source === 'device' && apps && (
             <>
               <button className="btn" disabled={loadingIcons} onClick={() => { void loadDeviceIcons(); }}>
-                {loadingIcons ? 'Loading icons…' : 'Load icons'}
+                {loadingIcons ? 'Cargando íconos…' : 'Cargar íconos'}
               </button>
               <button className="btn" disabled={scanning} onClick={() => { void scan(); }}>
-                {scanning ? 'Scanning…' : 'Re-scan'}
+                {scanning ? 'Escaneando…' : 'Re-escanear'}
               </button>
             </>
           )}
@@ -244,16 +244,16 @@ export function KioskEnterModal({
 
         {source === 'device' && apps && (
           <p className="kiosk-saved muted">
-            {scannedAt ? `Saved scan from ${new Date(scannedAt).toLocaleString()} · ${apps.length} apps` : `${apps.length} apps`} — re-scan to refresh.
+            {scannedAt ? `Escaneo guardado del ${new Date(scannedAt).toLocaleString()} · ${apps.length} apps` : `${apps.length} apps`} — re-escanea para actualizar.
           </p>
         )}
 
         {source === 'device' && !apps && (
           <div className="kiosk-scan">
             <button className="btn btn-primary" disabled={scanning} onClick={() => { void scan(); }}>
-              {scanning ? 'Scanning device…' : 'Scan device apps'}
+              {scanning ? 'Escaneando equipo…' : 'Escanear apps del equipo'}
             </button>
-            {scanning && <p className="muted">Asking the device for its installed apps…</p>}
+            {scanning && <p className="muted">Pidiéndole al equipo sus apps instaladas…</p>}
             {scanErr && <p className="err-text">{scanErr}</p>}
           </div>
         )}
@@ -261,7 +261,7 @@ export function KioskEnterModal({
         {(source === 'library' || apps) && (
           <div className="kiosk-applist">
             {libErr && source === 'library' && <p className="err-text" style={{ padding: 10 }}>{libErr}</p>}
-            {source === 'library' && !lib && !libErr && <p className="muted" style={{ padding: 10 }}>Loading library…</p>}
+            {source === 'library' && !lib && !libErr && <p className="muted" style={{ padding: 10 }}>Cargando biblioteca…</p>}
             {items.map((i) => {
               const on = selected.has(i.pkg);
               return (
@@ -280,29 +280,29 @@ export function KioskEnterModal({
                 </button>
               );
             })}
-            {!items.length && (source === 'library' ? lib : apps) && <p className="muted" style={{ padding: 10 }}>No apps match.</p>}
+            {!items.length && (source === 'library' ? lib : apps) && <p className="muted" style={{ padding: 10 }}>Ninguna app coincide.</p>}
           </div>
         )}
 
         <div className="kiosk-exit-row">
           <label className="field">
-            <span>Exit mode</span>
+            <span>Modo de salida</span>
             <select value={exitMode} onChange={(e) => setExitMode(e.target.value as typeof exitMode)}>
-              <option value="gesture">Gesture (7-tap corner)</option>
-              <option value="visible">Visible button</option>
-              <option value="remote">Remote only</option>
+              <option value="gesture">Gesto (7 toques en la esquina)</option>
+              <option value="visible">Botón visible</option>
+              <option value="remote">Sólo remoto</option>
             </select>
           </label>
           <label className="field">
-            <span>Exit password</span>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="optional" />
+            <span>Contraseña de salida</span>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="opcional" />
           </label>
         </div>
 
         <div className="modal-actions">
-          <button className="btn" disabled={busy} onClick={onClose}>Cancel</button>
+          <button className="btn" disabled={busy} onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" disabled={busy || !canApply} onClick={() => { void apply(); }}>
-            {busy ? 'Sending…' : `Enter kiosk (${selected.size})`}
+            {busy ? 'Enviando…' : `Entrar a kiosko (${selected.size})`}
           </button>
         </div>
       </div>
