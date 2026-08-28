@@ -32,7 +32,7 @@ export interface CommandTemplate {
 export const COMMAND_TEMPLATES: CommandTemplate[] = [
   {
     key: 'wifi-off',
-    label: 'Disable Wi-Fi',
+    label: 'Apagar Wi-Fi',
     description: 'Apply a policy that turns the device Wi-Fi radio off.',
     request: {
       type: 'policy.apply',
@@ -42,7 +42,7 @@ export const COMMAND_TEMPLATES: CommandTemplate[] = [
   },
   {
     key: 'wifi-on',
-    label: 'Enable Wi-Fi',
+    label: 'Encender Wi-Fi',
     description: 'Apply a policy that turns the device Wi-Fi radio on.',
     request: {
       type: 'policy.apply',
@@ -52,7 +52,7 @@ export const COMMAND_TEMPLATES: CommandTemplate[] = [
   },
   {
     key: 'camera-off',
-    label: 'Disable camera',
+    label: 'Apagar cámara',
     description: 'Apply a policy that blocks the device camera.',
     request: {
       type: 'policy.apply',
@@ -62,14 +62,14 @@ export const COMMAND_TEMPLATES: CommandTemplate[] = [
   },
   {
     key: 'reboot',
-    label: 'Reboot device',
-    description: 'Restart the device now.',
+    label: 'Reiniciar equipo',
+    description: 'Reinicia el equipo ahora.',
     danger: true,
     request: { type: 'device.reboot' },
   },
   {
     key: 'lock',
-    label: 'Lock device',
+    label: 'Bloquear equipo',
     description: 'Lock the device screen immediately.',
     danger: true,
     request: { type: 'device.lock' },
@@ -134,9 +134,9 @@ export interface CommandTemplateExt extends CommandTemplate {
 
 export const ACTION_TEMPLATES: CommandTemplateExt[] = [
   {
-    key: 'lockscreen-message', label: 'Set lock-screen message', group: 'safe',
+    key: 'lockscreen-message', label: 'Mensaje en pantalla de bloqueo', group: 'safe',
     description: 'Show a custom message on the device lock screen (empty clears it).',
-    params: [{ key: 'message', label: 'Message', kind: 'text', placeholder: 'Property of ACME IT' }],
+    params: [{ key: 'message', label: 'Mensaje', kind: 'text', placeholder: 'Propiedad de Reno IT' }],
     request: { type: 'device.lockscreenMessage', requiresCapability: 'device.lockscreenMessage' },
     build: (v) => ({
       type: 'device.lockscreenMessage', requiresCapability: 'device.lockscreenMessage',
@@ -144,11 +144,11 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     }),
   },
   {
-    key: 'alert', label: 'Send alert', group: 'safe',
+    key: 'alert', label: 'Enviar alerta', group: 'safe',
     description: 'Pop a high-priority message on the device.',
     params: [
-      { key: 'title', label: 'Title', kind: 'text', placeholder: 'Message from IT' },
-      { key: 'body', label: 'Message', kind: 'text', required: true },
+      { key: 'title', label: 'Título', kind: 'text', placeholder: 'Mensaje de IT' },
+      { key: 'body', label: 'Mensaje', kind: 'text', required: true },
     ],
     request: { type: 'device.alert', requiresCapability: 'device.alert' },
     build: (v) => ({
@@ -157,7 +157,7 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     }),
   },
   {
-    key: 'ring', label: 'Ring device', group: 'safe',
+    key: 'ring', label: 'Hacer sonar', group: 'safe',
     description: 'Play a loud locate tone for 30 seconds.',
     request: {
       type: 'device.ring', requiresCapability: 'device.ring',
@@ -165,24 +165,24 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     },
   },
   {
-    key: 'ring-stop', label: 'Stop ringing', group: 'safe',
+    key: 'ring-stop', label: 'Dejar de sonar', group: 'safe',
     description: 'Silence an active locate tone.',
     request: { type: 'device.ringStop', requiresCapability: 'device.ringStop' },
   },
   {
-    key: 'lock', label: 'Lock device', group: 'disruptive', danger: true,
+    key: 'lock', label: 'Bloquear equipo', group: 'disruptive', danger: true,
     description: 'Lock the device screen immediately.',
     request: { type: 'device.lock', requiresCapability: 'device.lock' },
   },
   {
-    key: 'reboot', label: 'Reboot device', group: 'disruptive', danger: true,
-    description: 'Restart the device now.', confirm: 'simple',
+    key: 'reboot', label: 'Reiniciar equipo', group: 'disruptive', danger: true,
+    description: 'Reinicia el equipo ahora.', confirm: 'simple',
     request: { type: 'device.reboot', requiresCapability: 'device.reboot' },
   },
   {
-    key: 'passcode-reset', label: 'Reset passcode', group: 'destructive', danger: true,
-    description: 'Set or clear the device passcode (empty clears it).', confirm: 'simple',
-    params: [{ key: 'newPassword', label: 'New passcode (blank to clear)', kind: 'password' }],
+    key: 'passcode-reset', label: 'Restablecer PIN', group: 'destructive', danger: true,
+    description: 'Pone o borra el PIN del equipo (vacío lo borra).', confirm: 'simple',
+    params: [{ key: 'newPassword', label: 'PIN nuevo (vacío para borrar)', kind: 'password' }],
     request: { type: 'device.passcodeReset', requiresCapability: 'device.passcodeReset' },
     build: (v) => ({
       type: 'device.passcodeReset', requiresCapability: 'device.passcodeReset',
@@ -190,12 +190,12 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     }),
   },
   {
-    key: 'wipe', label: 'Factory reset (wipe)', group: 'destructive', danger: true,
-    description: 'Irreversibly erase the device. Cannot be undone.', confirm: 'type-to-confirm',
+    key: 'wipe', label: 'Reset de fábrica (borrar)', group: 'destructive', danger: true,
+    description: 'Borra el equipo de forma irreversible. No se puede deshacer.', confirm: 'type-to-confirm',
     request: { type: 'device.wipe', requiresCapability: 'device.wipe' },
   },
   {
-    key: 'power-adaptive', label: 'Connectivity: Battery-saver', group: 'safe',
+    key: 'power-adaptive', label: 'Conectividad: Ahorro de batería', group: 'safe',
     description: 'Hold the live connection only when the screen is on or charging; use the low-power heartbeat when idle. Battery-friendly default.',
     request: {
       type: 'device.powerMode', requiresCapability: 'device.powerMode',
@@ -203,7 +203,7 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     },
   },
   {
-    key: 'power-always', label: 'Connectivity: Always-on', group: 'safe',
+    key: 'power-always', label: 'Conectividad: Siempre activa', group: 'safe',
     description: 'Keep the live connection up 24/7 for constant instant connectivity (higher battery use).',
     request: {
       type: 'device.powerMode', requiresCapability: 'device.powerMode',
@@ -211,7 +211,7 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     },
   },
   {
-    key: 'location-passive', label: 'Location: Battery-saver', group: 'safe',
+    key: 'location-passive', label: 'Ubicación: Ahorro de batería', group: 'safe',
     description: 'Report the device’s last-known location each check-in — near-zero battery, no active GPS.',
     request: {
       type: 'device.locationMode', requiresCapability: 'device.locationMode',
@@ -219,7 +219,7 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     },
   },
   {
-    key: 'location-active', label: 'Location: Accurate', group: 'safe',
+    key: 'location-active', label: 'Ubicación: Precisa', group: 'safe',
     description: 'Take a fresh GPS fix each check-in for tighter tracking (higher battery use).',
     request: {
       type: 'device.locationMode', requiresCapability: 'device.locationMode',
@@ -229,12 +229,12 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
   {
     // Handled specially by ActionConsole: opens the app-picker modal (scans the device, builds the
     // KioskApplyPayload, queues kiosk.enter ungated). Listed here only for the button + grouping.
-    key: 'kiosk-enter', label: 'Enter kiosk', group: 'disruptive', danger: true,
+    key: 'kiosk-enter', label: 'Entrar a kiosko', group: 'disruptive', danger: true,
     description: 'Lock the device to one app or a set of apps, chosen from a scan of the device.',
     request: { type: 'kiosk.enter' },
   },
   {
-    key: 'kiosk-exit', label: 'Exit kiosk', group: 'disruptive',
+    key: 'kiosk-exit', label: 'Salir del kiosko', group: 'disruptive',
     description: 'Release kiosk mode and restore the normal home screen.',
     request: { type: 'kiosk.exit' },
   },

@@ -13,10 +13,10 @@ const DEFAULT_CONFIG_KEY = 'mdmesh-default-config';
 const SECURITY_VALUES: WifiSecurity[] = ['WPA', 'WEP', 'NONE', 'EAP'];
 
 const STEPS = [
-  { title: 'Start from a factory-reset device', sub: 'On the first "Hi there" welcome screen, don\'t sign in yet.' },
-  { title: 'Tap the screen 6 times', sub: 'This opens the QR provisioning scanner. Connect to Wi-Fi if asked.' },
-  { title: 'Scan this code', sub: 'Android downloads the MDMesh agent and sets it as device owner.' },
-  { title: 'Wait for enrollment', sub: 'The device appears in Devices after its first check-in.' },
+  { title: 'Parte de un equipo reseteado de fábrica', sub: 'En la primera pantalla de bienvenida, aún no inicies sesión.' },
+  { title: 'Toca la pantalla 6 veces', sub: 'Se abre el lector de QR. Conéctate al Wi-Fi si lo pide.' },
+  { title: 'Escanea este código', sub: 'Android descarga el agente MDMesh y lo pone como Device Owner.' },
+  { title: 'Espera el alta', sub: 'El equipo aparece en Equipos tras su primer check-in.' },
 ];
 
 type Mode = 'qr' | 'token';
@@ -82,9 +82,9 @@ export function EnrollPage() {
     if (!token) return;
     try {
       await navigator.clipboard.writeText(token);
-      toast.push('ok', 'Token copied', 'Enrollment token copied to clipboard.');
+      toast.push('ok', 'Token copiado', 'Token de alta copiado al portapapeles.');
     } catch {
-      toast.push('err', 'Copy failed', 'Select and copy the token manually.');
+      toast.push('err', 'Falló copiar', 'Selecciona y copia el token a mano.');
     }
   }
 
@@ -93,11 +93,11 @@ export function EnrollPage() {
       <div className="enroll">
         <div className="enroll-top">
           <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.02em', margin: 0 }}>
-            Enroll a device
+            Dar de alta un equipo
           </h1>
           <div className="sp" />
-          <span className="seg" role="tablist" aria-label="Enrollment method">
-            <button className={mode === 'qr' ? 'on' : ''} onClick={() => setMode('qr')}>Scan QR</button>
+          <span className="seg" role="tablist" aria-label="Método de alta">
+            <button className={mode === 'qr' ? 'on' : ''} onClick={() => setMode('qr')}>Escanear QR</button>
             <button className={mode === 'token' ? 'on' : ''} onClick={() => setMode('token')}>Token</button>
           </span>
         </div>
@@ -105,9 +105,9 @@ export function EnrollPage() {
         {mode === 'qr' && (
           <section className="panel">
             <div className="panel-head">
-              <h2 className="panel-title">Scan to enroll</h2>
+              <h2 className="panel-title">Escanea para dar de alta</h2>
               <button className="btn btn-sm" onClick={() => void generate()} disabled={busy}>
-                {busy ? 'Generating…' : 'New code'}
+                {busy ? 'Generando…' : 'Nuevo código'}
               </button>
             </div>
             {tokError && <div className="banner banner-alert">{tokError}</div>}
@@ -123,21 +123,21 @@ export function EnrollPage() {
                       size={320}
                     />
                   ) : (
-                    <div className="empty"><span className="spin" /> Preparing…</div>
+                    <div className="empty"><span className="spin" /> Preparando…</div>
                   )}
                 </div>
                 <div className="qr-cap">
-                  Single-use{expiresAt ? ` · expires ${fmtDateTime(expiresAt)}` : ''}
-                  {wifiSsid.trim() ? ` · joins Wi-Fi “${wifiSsid.trim()}”` : ''}
+                  Un solo uso{expiresAt ? ` · vence ${fmtDateTime(expiresAt)}` : ''}
+                  {wifiSsid.trim() ? ` · se conecta al Wi-Fi “${wifiSsid.trim()}”` : ''}
                 </div>
                 <details className="wifi-block" open={!!wifiSsid.trim()}>
-                  <summary>Pre-connect Wi-Fi during setup (optional)</summary>
+                  <summary>Pre-conectar Wi-Fi durante el setup (opcional)</summary>
                   <div className="wifi-fields">
                     {configs.length > 0 && (
                       <label>
-                        Load Wi-Fi from configuration
+                        Cargar Wi-Fi desde una configuración
                         <select className="sel" value={cfgId} onChange={(e) => setCfgId(e.target.value)}>
-                          <option value="">— none / enter manually —</option>
+                          <option value="">— ninguna / a mano —</option>
                           {configs.map((c) => (
                             <option key={String(c.id)} value={String(c.id)}>{c.name}</option>
                           ))}
@@ -145,26 +145,26 @@ export function EnrollPage() {
                       </label>
                     )}
                     <label>
-                      Network name (SSID)
+                      Nombre de la red (SSID)
                       <input value={wifiSsid} onChange={(e) => setWifiSsid(e.target.value)} placeholder="Office-WiFi" />
                     </label>
                     <label>
-                      Security
+                      Seguridad
                       <select className="sel" value={wifiSec} onChange={(e) => setWifiSec(e.target.value as WifiSecurity)}>
                         <option value="WPA">WPA / WPA2</option>
                         <option value="WEP">WEP</option>
-                        <option value="NONE">Open (no password)</option>
+                        <option value="NONE">Abierta (sin contraseña)</option>
                       </select>
                     </label>
                     {wifiSec !== 'NONE' && (
                       <label>
-                        Password
+                        Contraseña
                         <input type="password" value={wifiPass} onChange={(e) => setWifiPass(e.target.value)} autoComplete="off" />
                       </label>
                     )}
                     <p className="note">
-                      The device joins this network during provisioning (before it downloads the agent).
-                      Heads-up: the password is embedded in the QR — only show it to people you trust to enroll.
+                      El equipo se conecta a esta red durante la provisión (antes de descargar el agente).
+                      Ojo: la contraseña queda dentro del QR — sólo muéstralo a quien confíes para dar de alta.
                     </p>
                   </div>
                 </details>
@@ -180,7 +180,7 @@ export function EnrollPage() {
             </div>
             <p className="note" style={{ padding: '0 20px 16px' }}>
               Server <span className="mono">{serverBaseUrl()}</span> · agent{' '}
-              <span className="mono">{agentApkUrl()}</span>. Host the agent APK at that URL.
+              <span className="mono">{agentApkUrl()}</span>. Hospeda el APK del agente en esa URL.
             </p>
           </section>
         )}
@@ -188,9 +188,9 @@ export function EnrollPage() {
         {mode === 'token' && (
           <section className="panel enroll-wrap">
             <div className="panel-head">
-              <h2 className="panel-title">Enrollment token</h2>
+              <h2 className="panel-title">Token de alta</h2>
               <button className="btn btn-primary btn-sm" onClick={() => void generate()} disabled={busy}>
-                {busy ? 'Generating…' : token ? 'Generate another' : 'Generate token'}
+                {busy ? 'Generando…' : token ? 'Generar otro' : 'Generar token'}
               </button>
             </div>
             <div style={{ padding: 20 }}>
@@ -199,19 +199,19 @@ export function EnrollPage() {
                 <>
                   <div className="token-box">
                     <span className="tok">{token}</span>
-                    <button className="btn btn-sm btn-ghost" onClick={() => void copy()} aria-label="Copy token">
+                    <button className="btn btn-sm btn-ghost" onClick={() => void copy()} aria-label="Copiar token">
                       <IconCopy className="ico" />
                     </button>
                   </div>
                   <p className="note">
-                    Single-use token{expiresAt ? `, expires ${fmtDateTime(expiresAt)}` : ''}. For headless
-                    or scripted provisioning — embed it as{' '}
+                    Token de un solo uso{expiresAt ? `, vence ${fmtDateTime(expiresAt)}` : ''}. Para alta headless
+                    o por script — inclúyelo como{' '}
                     <span className="mono">com.mdmesh.ENROLL_TOKEN</span> (with{' '}
-                    <span className="mono">com.mdmesh.SERVER_URL</span>). The QR is the usual path.
+                    <span className="mono">com.mdmesh.SERVER_URL</span>). El QR es la vía normal.
                   </p>
                 </>
               ) : (
-                <p className="note">For headless or scripted provisioning. For the usual flow, scan the QR.</p>
+                <p className="note">Para alta headless o por script. Para lo normal, escanea el QR.</p>
               )}
             </div>
           </section>

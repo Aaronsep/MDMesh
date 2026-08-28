@@ -9,9 +9,9 @@ import { KioskEnterModal } from './KioskEnterModal';
 type Device = { number: string };
 
 const GROUPS: Array<{ id: 'safe' | 'disruptive' | 'destructive'; title: string }> = [
-  { id: 'safe', title: 'Actions' },
-  { id: 'disruptive', title: 'Disruptive' },
-  { id: 'destructive', title: 'Destructive' },
+  { id: 'safe', title: 'Acciones' },
+  { id: 'disruptive', title: 'Disruptivas' },
+  { id: 'destructive', title: 'Destructivas' },
 ];
 
 export function ActionConsole({ device }: { device: Device }) {
@@ -93,7 +93,7 @@ export function ActionConsole({ device }: { device: Device }) {
   return (
     <div className="panel">
       <div className="panel-head">
-        <h2 className="panel-title">Device control</h2>
+        <h2 className="panel-title">Control del equipo</h2>
         <button
           className="btn"
           disabled={busy}
@@ -157,7 +157,7 @@ export function ActionConsole({ device }: { device: Device }) {
               </label>
             )}
             <div className="modal-actions">
-              <button className="btn" disabled={busy} onClick={() => setActive(null)}>Cancel</button>
+              <button className="btn" disabled={busy} onClick={() => setActive(null)}>Cancelar</button>
               <button
                 className={`btn ${active.danger ? 'btn-danger' : 'btn-primary'}`}
                 disabled={busy || !canSend}
@@ -180,17 +180,17 @@ function powerLabel(mode?: string | null): string {
 }
 
 function DeviceStatePanel({ state }: { state: DeviceState | null }) {
-  if (!state) return <p className="muted">No state reported yet.</p>;
+  if (!state) return <p className="muted">Aún no hay estado reportado.</p>;
   const seen = state.updatedAt ? new Date(state.updatedAt).toLocaleTimeString() : '—';
   return (
     <dl className="state-grid">
-      <div><dt>Battery</dt><dd>{state.battery < 0 ? '—' : `${state.battery}%`}{state.charging ? ' ⚡' : ''}</dd></div>
-      <div><dt>Screen</dt><dd>{state.locked ? 'Locked' : 'Unlocked'}</dd></div>
-      <div><dt>Kiosk</dt><dd>{state.kioskActive ? 'Active' : 'Off'}</dd></div>
+      <div><dt>Batería</dt><dd>{state.battery < 0 ? '—' : `${state.battery}%`}{state.charging ? ' ⚡' : ''}</dd></div>
+      <div><dt>Pantalla</dt><dd>{state.locked ? 'Locked' : 'Unlocked'}</dd></div>
+      <div><dt>Kiosko</dt><dd>{state.kioskActive ? 'Activo' : 'Inactivo'}</dd></div>
       <div><dt>Android</dt><dd>{state.androidRelease || '—'}</dd></div>
-      <div><dt>Agent</dt><dd>{state.agentVersion || '—'}</dd></div>
-      <div><dt>Connectivity</dt><dd>{powerLabel(state.powerMode)}</dd></div>
-      <div><dt>State as of</dt><dd>{seen}</dd></div>
+      <div><dt>Agente</dt><dd>{state.agentVersion || '—'}</dd></div>
+      <div><dt>Conectividad</dt><dd>{powerLabel(state.powerMode)}</dd></div>
+      <div><dt>Estado al</dt><dd>{seen}</dd></div>
     </dl>
   );
 }
@@ -199,7 +199,7 @@ function CommandTimeline({ items }: { items: CommandHistoryItem[] }) {
   if (!items.length) return null;
   return (
     <section className="timeline">
-      <h3 className="action-group-title">Recent commands</h3>
+      <h3 className="action-group-title">Comandos recientes</h3>
       <ul>
         {items.map((c) => (
           <li key={String(c.id)} className={`timeline-item status-${c.status}`}>

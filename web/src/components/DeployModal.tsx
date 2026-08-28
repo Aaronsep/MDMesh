@@ -134,7 +134,7 @@ export function DeployModal({
       toast.push('ok', `Added ${subject.label}`, `Assigned to ${name}.`);
       onClose();
     } catch (e) {
-      toast.push('err', 'Assign failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'Falló asignar', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -174,7 +174,7 @@ export function DeployModal({
               </svg>
               <input
                 type="search"
-                placeholder="Filter devices"
+                placeholder="Filtrar equipos"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
               />
@@ -207,14 +207,14 @@ export function DeployModal({
           </>
         ) : (
           <div className="field" style={{ margin: '4px 0 8px' }}>
-            <span>Configuration</span>
+            <span>Configuración</span>
             <select
               className="sel"
               value={config}
               onChange={(e) => setConfig(e.target.value)}
               style={{ width: '100%' }}
             >
-              <option value="">Select a configuration…</option>
+              <option value="">Elige una configuración…</option>
               {configs.map((c) => (
                 <option key={c.id} value={String(c.id)}>
                   {c.name}

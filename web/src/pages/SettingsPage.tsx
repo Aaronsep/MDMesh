@@ -113,32 +113,32 @@ export function SettingsPage() {
   return (
     <AppShell title="Settings">
       <div className="page-head">
-        <h1>Settings</h1>
+        <h1>Ajustes</h1>
       </div>
 
       <div className="settings">
         {/* Account & session */}
         <section className="panel">
           <div className="panel-head">
-            <h2 className="panel-title">Account</h2>
+            <h2 className="panel-title">Cuenta</h2>
             <button className="btn btn-sm" onClick={() => void signOut()}>
               Sign out
             </button>
           </div>
           <div className="set-row">
-            <span className="k">Signed in as</span>
+            <span className="k">Sesión de</span>
             <span className="v">{orDash(user?.name || user?.login)}</span>
           </div>
           <div className="set-row">
-            <span className="k">Login</span>
+            <span className="k">Usuario</span>
             <span className="v mono">{orDash(user?.login)}</span>
           </div>
           <div className="set-row">
-            <span className="k">Email</span>
+            <span className="k">Correo</span>
             <span className="v mono">{orDash(user?.email)}</span>
           </div>
           <div className="set-row">
-            <span className="k">Role</span>
+            <span className="k">Rol</span>
             <span className="v">{user?.superAdmin ? 'Super admin' : 'Admin'}</span>
           </div>
         </section>
@@ -146,10 +146,10 @@ export function SettingsPage() {
         {/* Server & connection */}
         <section className="panel">
           <div className="panel-head">
-            <h2 className="panel-title">Server &amp; connection</h2>
+            <h2 className="panel-title">Servidor y conexión</h2>
           </div>
           <div className="set-row">
-            <span className="k">Status</span>
+            <span className="k">Estado</span>
             <span className="v">
               <span className="conn">
                 <span className={`dot dot-${cm.tone}`} />
@@ -162,7 +162,7 @@ export function SettingsPage() {
             <span className="v mono">{API_BASE || '(same origin)'}</span>
           </div>
           <div className="set-row">
-            <span className="k">Console version</span>
+            <span className="k">Versión de la consola</span>
             <span className="v mono">MDMesh {APP_VERSION}</span>
           </div>
         </section>
@@ -171,14 +171,14 @@ export function SettingsPage() {
         {upd && (
           <section className="panel">
             <div className="panel-head">
-              <h2 className="panel-title">Updates</h2>
+              <h2 className="panel-title">Actualizaciones</h2>
             </div>
             <div className="set-row">
-              <span className="k">Running version</span>
+              <span className="k">Versión actual</span>
               <span className="v mono">{orDash(upd.current)}</span>
             </div>
             <div className="set-row">
-              <span className="k">Latest available</span>
+              <span className="k">Última disponible</span>
               <span className="v mono">
                 {orDash(upd.latest)}
                 {upd.latest && upd.verified ? ' ✓' : ''}
@@ -258,7 +258,7 @@ export function SettingsPage() {
             <div className="set-row auto-update-row">
               <span className="k">
                 Automatic updates
-                <small>Apply verified releases without a prompt.</small>
+                <small>Aplica versiones verificadas sin preguntar.</small>
                 <p className="au-note">
                   When on, the updater applies each verified release on its own — backing up the
                   database first and rolling back automatically if it fails. Leave off to review and
@@ -297,7 +297,7 @@ export function SettingsPage() {
         {/* Enrollment defaults */}
         <section className="panel">
           <div className="panel-head">
-            <h2 className="panel-title">Enrollment defaults</h2>
+            <h2 className="panel-title">Valores de alta por defecto</h2>
             <button
               className="btn btn-sm btn-primary"
               onClick={() => navigate('/enroll')}
@@ -308,7 +308,7 @@ export function SettingsPage() {
           <div className="set-row">
             <span className="k">
               Default configuration
-              <small>Pre-selected when you enroll a new device.</small>
+              <small>Preseleccionado al dar de alta un equipo.</small>
             </span>
             <span className="v">
               <select
@@ -316,7 +316,7 @@ export function SettingsPage() {
                 value={defaultConfig}
                 onChange={(e) => setDefaultConfig(e.target.value)}
               >
-                <option value="">No default</option>
+                <option value="">Sin predeterminada</option>
                 {configList.map((c) => (
                   <option key={c.id} value={String(c.id)}>
                     {c.name}
@@ -337,12 +337,12 @@ export function SettingsPage() {
         {/* Appearance */}
         <section className="panel">
           <div className="panel-head">
-            <h2 className="panel-title">Appearance</h2>
+            <h2 className="panel-title">Apariencia</h2>
           </div>
           <div className="set-row">
             <span className="k">
               Theme
-              <small>Switches with a smooth crossfade.</small>
+              <small>Cambia con un fundido suave.</small>
             </span>
             <span className="v">
               <span className="seg">
@@ -364,7 +364,7 @@ export function SettingsPage() {
           <div className="set-row">
             <span className="k">
               Density
-              <small>Tighten spacing across the console.</small>
+              <small>Compacta el espaciado de la consola.</small>
             </span>
             <span className="v">
               <span className="seg">

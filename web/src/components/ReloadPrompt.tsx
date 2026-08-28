@@ -34,14 +34,14 @@ export function ReloadPrompt() {
   return (
     <div className="reload-bar">
       <span>
-        New console <b>v{liveVersion}</b> is live — reload to load it.
+        Nueva consola <b>v{liveVersion}</b> disponible — recarga para cargarla.
       </span>
       <span className="reload-actions">
         <button className="btn btn-sm btn-primary" onClick={() => window.location.reload()}>
-          Reload
+          Recargar
         </button>
         <button className="btn btn-sm btn-ghost" onClick={() => setDismissed(true)} aria-label="Dismiss">
-          Later
+          Después
         </button>
       </span>
     </div>

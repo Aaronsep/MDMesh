@@ -32,9 +32,9 @@ export function EventTimeline({ device }: { device: Device }) {
 
   return (
     <div className="panel">
-      <h2 className="panel-title">Events</h2>
+      <h2 className="panel-title">Eventos</h2>
       {events.length === 0 ? (
-        <p className="muted">No events yet.</p>
+        <p className="muted">Sin eventos aún.</p>
       ) : (
         <ul className="timeline">
           {events.map((e) => (

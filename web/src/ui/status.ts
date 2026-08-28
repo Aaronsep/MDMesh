@@ -10,11 +10,11 @@ interface StatusMeta {
 }
 
 const MAP: Record<string, StatusMeta> = {
-  green: { tone: 'ok', label: 'Online' },
-  yellow: { tone: 'warn', label: 'Idle' },
-  brown: { tone: 'warn', label: 'Stale' },
-  red: { tone: 'alert', label: 'Offline' },
-  grey: { tone: 'idle', label: 'Unknown' },
+  green: { tone: 'ok', label: 'En línea' },
+  yellow: { tone: 'warn', label: 'Inactivo' },
+  brown: { tone: 'warn', label: 'Rezagado' },
+  red: { tone: 'alert', label: 'Desconectado' },
+  grey: { tone: 'idle', label: 'Desconocido' },
 };
 
 export function statusMeta(code?: string): StatusMeta {

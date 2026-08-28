@@ -120,12 +120,12 @@ export function RolloutPanel() {
 
   return (
     <section className="panel">
-      <div className="panel-head"><h2 className="panel-title">Agent rollout</h2></div>
+      <div className="panel-head"><h2 className="panel-title">Despliegue del agente</h2></div>
 
       {active && rollout && (
         <>
           <div className="set-row">
-            <span className="k">Rolling out</span>
+            <span className="k">Desplegando</span>
             <span className="v mono">
               v{rollout.targetVersion} · <span className="ub-ch">{rollout.stage}</span>
             </span>
@@ -141,7 +141,7 @@ export function RolloutPanel() {
                   || rollout.progress.canary.pending > 0
                   || rollout.progress.canary.outstanding > 0
                   || rollout.progress.canary.updated < 1}
-                title="Enabled once every canary device has updated"
+                title="Se habilita cuando todos los canary se actualizaron"
               >
                 Promote to fleet
               </button>
@@ -157,7 +157,7 @@ export function RolloutPanel() {
         <div className="set-row">
           <span className="k">
             Agent v{apk.version} available
-            <small>Push the new agent APK to devices in stages.</small>
+            <small>Empuja el nuevo APK del agente por etapas.</small>
           </span>
           <span className="v">
             <button className="btn btn-sm btn-primary" onClick={() => void openPicker()}>
@@ -181,7 +181,7 @@ export function RolloutPanel() {
                 {d.description && <span className="muted">{d.description}</span>}
               </label>
             ))}
-            {devices.length === 0 && <span className="muted">No devices.</span>}
+            {devices.length === 0 && <span className="muted">Sin equipos.</span>}
           </div>
           <div className="set-row" style={{ justifyContent: 'flex-end', gap: 8 }}>
             <button className="btn btn-sm" onClick={() => { setPicking(false); setSelected(new Set()); }} disabled={busy}>

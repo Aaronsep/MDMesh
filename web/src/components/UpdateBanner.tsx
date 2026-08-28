@@ -52,8 +52,8 @@ export function UpdateBanner() {
           {apply.error ? <span className="ub-warn"> · {apply.error}</span> : null}
         </span>
         {failed
-          ? <a className="btn btn-sm" href="/recovery">Recovery…</a>
-          : <span className="ub-spin" aria-label="working" />}
+          ? <a className="btn btn-sm" href="/recovery">Recuperando…</a>
+          : <span className="ub-spin" aria-label="trabajando" />}
       </div>
     );
   }
@@ -69,7 +69,7 @@ export function UpdateBanner() {
     setErr(null);
     const r = await applyUpdate();
     setBusy(false);
-    if (!r.ok) setErr(r.error || 'Failed to start update');
+    if (!r.ok) setErr(r.error || 'No se pudo iniciar la actualización');
     else poke.current(); // re-poll immediately so progress shows right away
   };
 
@@ -87,7 +87,7 @@ export function UpdateBanner() {
         </button>
       ) : (
         // Source-built (native) deployments can't self-apply — Settings › Updates has the steps.
-        <a className="btn btn-sm" href="/settings">Details…</a>
+        <a className="btn btn-sm" href="/settings">Detalles…</a>
       )}
     </div>
   );

@@ -102,7 +102,7 @@ export function ConfigurationsPage() {
   return (
     <AppShell title="Configurations">
       <div className="page-head">
-        <h1>Configurations</h1>
+        <h1>Configuraciones</h1>
         <button className="btn btn-dark" onClick={() => setChooserOpen(true)}>
           New configuration
         </button>
@@ -113,7 +113,7 @@ export function ConfigurationsPage() {
       {configs === null ? (
         <div className="panel"><div className="empty"><span className="spin" /> Loading…</div></div>
       ) : configs.length === 0 ? (
-        <div className="panel"><div className="empty"><span className="label">No configurations</span>Create one to use as a device template.</div></div>
+        <div className="panel"><div className="empty"><span className="label">Sin configuraciones</span>Crea una para usarla como plantilla de equipos.</div></div>
       ) : (
         <div className="cfg-grid">
           {configs.map((c) => (
@@ -163,11 +163,11 @@ export function ConfigurationsPage() {
     if (!window.confirm(`Delete configuration "${c.name}"? This cannot be undone.`)) return;
     try {
       await deleteConfiguration(c.id);
-      toast.push('ok', 'Configuration deleted', c.name);
+      toast.push('ok', 'Configuración eliminada', c.name);
       void load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
-      toast.push('err', 'Delete failed', /device/i.test(msg) ? 'Devices still use this configuration.' : msg);
+      toast.push('err', 'Falló eliminar', /device/i.test(msg) ? 'Devices still use this configuration.' : msg);
     }
   }
 }
@@ -197,18 +197,18 @@ function ConfigCard({
     <div className="cfg-card">
       <div className="cfg-top">
         <div className="cfg-nm">{c.name}</div>
-        {locked ? <span className="cfg-badge default">Default</span> : null}
-        {c.kioskMode ? <span className="cfg-badge">Kiosk</span> : null}
+        {locked ? <span className="cfg-badge default">Predeterminada</span> : null}
+        {c.kioskMode ? <span className="cfg-badge">Kiosko</span> : null}
       </div>
       {c.description ? <div className="cfg-desc">{String(c.description)}</div> : null}
       <div className="cfg-meta">
-        <span><span className="k">Main app</span><span className="v">{appName}</span></span>
+        <span><span className="k">App principal</span><span className="v">{appName}</span></span>
         <span><span className="k">Apps</span><span className="v">{appCount}</span></span>
       </div>
       <div className="cfg-actions">
         <button className="btn btn-sm btn-primary" onClick={onEdit}>{locked ? 'View' : 'Edit'}</button>
         <button className="btn btn-sm" onClick={onCopy}>{locked ? 'Use as template' : 'Copy'}</button>
-        {!locked && <button className="btn btn-sm btn-danger" onClick={onDelete}>Delete</button>}
+        {!locked && <button className="btn btn-sm btn-danger" onClick={onDelete}>Eliminar</button>}
       </div>
     </div>
   );
@@ -226,22 +226,22 @@ function NewChooser({
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>New configuration</h3>
-        <p className="muted" style={{ margin: '2px 0 14px' }}>Start from scratch, or base it on a default template.</p>
+        <h3>Nueva configuración</h3>
+        <p className="muted" style={{ margin: '2px 0 14px' }}>Empieza de cero, o básate en una plantilla.</p>
         <div className="chooser-list">
           <button className="chooser-opt" onClick={() => onPick(null)}>
-            <span className="chooser-nm">Blank configuration</span>
-            <span className="chooser-sub">Empty template — set everything yourself.</span>
+            <span className="chooser-nm">Configuración en blanco</span>
+            <span className="chooser-sub">Plantilla vacía — configúralo todo tú.</span>
           </button>
           {defaults.map((d) => (
             <button key={d.id} className="chooser-opt" onClick={() => onPick(d)}>
               <span className="chooser-nm">Based on “{d.name}”</span>
-              <span className="chooser-sub">Copy this default’s settings and apps, then customise.</span>
+              <span className="chooser-sub">Copia los ajustes y apps de esta plantilla y personalízala.</span>
             </button>
           ))}
         </div>
         <div className="modal-actions">
-          <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn" onClick={onClose}>Cancelar</button>
         </div>
       </div>
     </div>
@@ -257,10 +257,10 @@ function CopyModal({ source, onClose, onDone }: { source: Configuration; onClose
     setBusy(true);
     try {
       await copyConfiguration(source.id, name.trim(), source.description as string | undefined);
-      toast.push('ok', 'Configuration copied', name.trim());
+      toast.push('ok', 'Configuración copiada', name.trim());
       onDone();
     } catch (e) {
-      toast.push('err', 'Copy failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'Falló copiar', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -268,12 +268,12 @@ function CopyModal({ source, onClose, onDone }: { source: Configuration; onClose
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Copy configuration</h3>
-        <label className="field"><span>New name</span>
+        <h3>Copiar configuración</h3>
+        <label className="field"><span>Nombre nuevo</span>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
         </label>
         <div className="modal-actions">
-          <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
           <button className="btn btn-primary" disabled={busy || !name.trim()} onClick={() => void go()}>
             {busy ? 'Copying…' : 'Copy'}
           </button>
@@ -351,11 +351,11 @@ function ConfigEditor({
 
   async function save() {
     if (!String(draft.name ?? '').trim()) {
-      toast.push('err', 'Name required', 'Give the configuration a name.');
+      toast.push('err', 'Falta el nombre', 'Give the configuration a name.');
       return;
     }
     if (!appsReady) {
-      toast.push('err', 'Still loading', 'The assigned apps are still loading — try again in a moment.');
+      toast.push('err', 'Aún cargando', 'The assigned apps are still loading — try again in a moment.');
       return;
     }
     setBusy(true);
@@ -365,7 +365,7 @@ function ConfigEditor({
       onSaved();
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
-      toast.push('err', 'Save failed', /duplicate/i.test(msg) ? 'A configuration with that name exists.' : msg);
+      toast.push('err', 'Falló guardar', /duplicate/i.test(msg) ? 'A configuration with that name exists.' : msg);
     } finally {
       setBusy(false);
     }
@@ -379,7 +379,7 @@ function ConfigEditor({
   return (
     <>
       <div className="crumb">
-        <a href="/configs" onClick={(e) => { e.preventDefault(); onCancel(); }}>Configurations</a>
+        <a href="/configs" onClick={(e) => { e.preventDefault(); onCancel(); }}>Configuraciones</a>
         {' / '}{isNew ? 'New' : String(initial.name)}
       </div>
 
@@ -390,7 +390,7 @@ function ConfigEditor({
         <div style={{ flex: 1 }} />
         <button className="btn" onClick={onCancel} disabled={busy}>{readOnly ? 'Back' : 'Cancel'}</button>
         {readOnly ? (
-          <button className="btn btn-primary" onClick={onDuplicate}>Duplicate to edit</button>
+          <button className="btn btn-primary" onClick={onDuplicate}>Duplica para editar</button>
         ) : (
           <button className="btn btn-primary" onClick={() => void save()} disabled={busy || !appsReady}>
             {busy ? 'Saving…' : !appsReady ? 'Loading…' : 'Save'}
@@ -400,7 +400,7 @@ function ConfigEditor({
 
       {readOnly && (
         <div className="banner cfg-default-note">
-          This is a built-in default template — view only. Use <b>Duplicate to edit</b> to make
+          This is a built-in default template — view only. Use <b>Duplica para editar</b> to make
           your own editable copy.
         </div>
       )}
@@ -413,7 +413,7 @@ function ConfigEditor({
 
       <section className="panel cfg-panel">
         <div className="cfg-sec-h" style={{ display: 'flex', alignItems: 'center' }}>
-          <span>Allowed apps</span>
+          <span>Apps permitidas</span>
           {!readOnly && (
             <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setPickerOpen(true)}>
               Add apps
@@ -423,7 +423,7 @@ function ConfigEditor({
         <p className="note" style={{ margin: '0 0 12px' }}>
           Apps this template installs on its devices. Set an app to “Remove” to uninstall it.
         </p>
-        {allowed.length === 0 && <div className="cfg-empty">No apps assigned.</div>}
+        {allowed.length === 0 && <div className="cfg-empty">Sin apps asignadas.</div>}
         {allowed.map((a) => (
           <div className="cfg-app" key={a.id}>
             <span className="cfg-app-nm">{a.name ?? a.pkg ?? `#${a.id}`}</span>
@@ -434,12 +434,12 @@ function ConfigEditor({
               disabled={readOnly}
               onChange={(e) => setAppAction(a.id, Number(e.target.value))}
             >
-              <option value={1}>Install</option>
-              <option value={2}>Remove</option>
-              <option value={0}>Hide icon</option>
+              <option value={1}>Instalar</option>
+              <option value={2}>Quitar</option>
+              <option value={0}>Ocultar ícono</option>
             </select>
             {!readOnly && (
-              <button className="btn btn-sm btn-ghost" onClick={() => removeApp(a.id)} aria-label="Remove app">✕</button>
+              <button className="btn btn-sm btn-ghost" onClick={() => removeApp(a.id)} aria-label="Quitar app">✕</button>
             )}
           </div>
         ))}

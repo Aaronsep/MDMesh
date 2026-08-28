@@ -175,7 +175,7 @@ export function DashboardPage() {
   return (
     <AppShell title="Overview">
       <div className="page-head">
-        <h1>Overview</h1>
+        <h1>Resumen</h1>
       </div>
 
       {error && <div className="banner banner-alert">{error}</div>}
@@ -211,7 +211,7 @@ export function DashboardPage() {
       <div className="ov-grid">
         <section className="panel">
           <div className="panel-head">
-            <h2 className="panel-title">Recent activity</h2>
+            <h2 className="panel-title">Actividad reciente</h2>
             <button
               className="btn btn-sm btn-ghost"
               onClick={() => navigate('/devices')}
@@ -226,7 +226,7 @@ export function DashboardPage() {
               </div>
             ) : activity.length === 0 ? (
               <div className="empty">
-                <span className="label">Activity</span>
+                <span className="label">Actividad</span>
                 No recent events.
               </div>
             ) : (
@@ -266,7 +266,7 @@ export function DashboardPage() {
         <div className="ov-col">
           <section className="panel">
             <div className="panel-head">
-              <h2 className="panel-title">Needs attention</h2>
+              <h2 className="panel-title">Requieren atención</h2>
             </div>
             <div className="ov-listpad">
               {loading ? (
@@ -275,7 +275,7 @@ export function DashboardPage() {
                 </div>
               ) : attention.length === 0 ? (
                 <div className="empty">
-                  <span className="label">All clear</span>
+                  <span className="label">Todo en orden</span>
                   Every device is online.
                 </div>
               ) : (
@@ -306,12 +306,12 @@ export function DashboardPage() {
 
           <section className="panel">
             <div className="panel-head">
-              <h2 className="panel-title">By configuration</h2>
+              <h2 className="panel-title">Por configuración</h2>
             </div>
             <div className="ov-listpad">
               {byConfig.length === 0 ? (
                 <div className="empty">
-                  <span className="label">Configurations</span>
+                  <span className="label">Configuraciones</span>
                   No devices yet.
                 </div>
               ) : (
