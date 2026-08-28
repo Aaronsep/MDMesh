@@ -2813,7 +2813,7 @@ a {
 .detail-rail .actions .sec { flex: 1 1 0; white-space: nowrap; }
 
 /* ============================================================================
-   SIDEBAR — línea BackOffice (tokens --sidebar-*/--brand, marcador de 3px,
+   SIDEBAR — linea BackOffice (tokens sidebar y brand, marcador de 3px,
    header de marca, footer nav-user).  (2026-08-28)
    ========================================================================= */
 :root {
@@ -2848,7 +2848,7 @@ a {
 .sb-brand { display: flex; align-items: center; gap: 10px; padding: 6px 6px; border-radius: 10px; }
 .sb-tile {
   flex: none; width: 34px; height: 34px; border-radius: 9px;
-  background: var(--sidebar-primary);
+  background: var(--sidebar-primary, #071281);
   display: inline-flex; align-items: center; justify-content: center;
   box-shadow: 0 1px 2px rgba(7, 18, 129, 0.28);
 }
@@ -2905,3 +2905,76 @@ a {
 }
 .sb-btn:hover { background: color-mix(in oklab, var(--brand-accent) 8%, transparent); opacity: 1; }
 .sb-btn .sb-ico { width: 15px; height: 15px; }
+
+/* ============================================================================
+   Ajustes finos (2026-08-28): backdrop suave, comandos legibles, filas de
+   equipos con más presencia.
+   ========================================================================= */
+
+/* Drawer: backdrop suave con desenfoque (no una losa oscura de la nada). */
+.drawer-backdrop {
+  background: rgba(17, 22, 41, 0.20);
+  backdrop-filter: blur(3px) saturate(1.03);
+  -webkit-backdrop-filter: blur(3px) saturate(1.03);
+}
+[data-theme='dark'] .drawer-backdrop { background: rgba(0, 0, 0, 0.44); }
+/* Con un drawer abierto, el fondo no se scrollea. */
+body.no-scroll { overflow: hidden; }
+
+/* Comandos recientes: fila legible (nombre humano + hora + estado con punto). */
+.cmd-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 4px;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 13px;
+}
+.cmd-row:last-child { border-bottom: none; }
+.cmd-main { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.cmd-name { color: var(--text); font-weight: 500; }
+.cmd-detail { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmd-time { color: var(--faint); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cmd-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; font-weight: 600; white-space: nowrap;
+}
+.cmd-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.cmd-status.st-done { color: var(--online); }
+.cmd-status.st-delivered, .cmd-status.st-pending { color: var(--faint); }
+.cmd-status.st-failed, .cmd-status.st-expired, .cmd-status.st-unsupported { color: var(--alert); }
+
+/* Lista de equipos (vista lista): fila ancha con presencia, hover y chevron. */
+.dev-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) 1fr 1.4fr 1fr 20px;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+.dev-row:hover {
+  border-color: color-mix(in oklab, var(--brand-accent) 40%, var(--border));
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+}
+.dev-row.sel { border-color: var(--brand-accent); background: color-mix(in oklab, var(--brand-accent) 6%, var(--surface)); }
+.dev-row .id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dev-row .id .nm { font-weight: 600; font-size: 13.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dev-row .id .sub { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dev-row .lc { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dev-row .lc .lk { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--faint); }
+.dev-row .lc .lv { font-size: 13px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dev-row .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.dev-row .dot.on { background: var(--online); box-shadow: 0 0 0 3px color-mix(in oklab, var(--online) 22%, transparent); }
+.dev-row .dot.off { background: var(--faint); }
+.dev-row .chev { color: var(--faint); justify-self: end; }
+@media (max-width: 720px) {
+  .dev-row { grid-template-columns: 1fr auto; }
+  .dev-row .lc { display: none; }
+}

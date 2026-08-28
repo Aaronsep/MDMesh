@@ -4,6 +4,7 @@ import {
   listCommandHistory, forceSync, type DeviceState, type CommandHistoryItem,
 } from '../api/commands';
 import { useToast } from '../ui/toast';
+import { fmtRelative } from '../ui/format';
 import { KioskEnterModal } from './KioskEnterModal';
 
 type Device = { number: string };
@@ -195,6 +196,33 @@ function DeviceStatePanel({ state }: { state: DeviceState | null }) {
   );
 }
 
+// Nombres humanos para el histórico de comandos (el `type` crudo no se entiende).
+const CMD_LABELS: Record<string, string> = {
+  'device.lockscreenMessage': 'Mensaje en pantalla',
+  'device.alert': 'Alerta enviada',
+  'device.ring': 'Hacer sonar',
+  'device.ringStop': 'Detener sonido',
+  'device.lock': 'Bloquear pantalla',
+  'device.reboot': 'Reiniciar equipo',
+  'device.passcodeReset': 'Restablecer PIN',
+  'device.wipe': 'Reset de fábrica',
+  'device.powerMode': 'Modo de energía',
+  'device.locationMode': 'Modo de ubicación',
+  'kiosk.enter': 'Entrar a kiosko',
+  'kiosk.exit': 'Salir del kiosko',
+  'app.install': 'Instalar app',
+  'app.uninstall': 'Desinstalar app',
+  'apps.scan': 'Escanear apps',
+  'policy.apply': 'Aplicar política',
+};
+const cmdLabel = (t: string) => CMD_LABELS[t] ?? t;
+
+const ST_LABELS: Record<string, string> = {
+  done: 'Hecho', delivered: 'Entregado', pending: 'Pendiente', accepted: 'Aceptado',
+  failed: 'Falló', expired: 'Expiró', unsupported: 'No soportado',
+};
+const stLabel = (s: string) => ST_LABELS[(s || '').toLowerCase()] ?? s;
+
 function CommandTimeline({ items }: { items: CommandHistoryItem[] }) {
   if (!items.length) return null;
   const shown = items.slice(0, 40);
@@ -204,13 +232,20 @@ function CommandTimeline({ items }: { items: CommandHistoryItem[] }) {
         Comandos recientes{items.length > shown.length ? ` · ${shown.length} de ${items.length}` : ''}
       </h3>
       <ul>
-        {shown.map((c) => (
-          <li key={String(c.id)} className={`timeline-item status-${c.status}`}>
-            <span className="t-type">{c.type}</span>
-            <span className={`t-status status-${c.status}`}>{c.status}</span>
-            {c.detail && <CommandDetail text={c.detail} />}
-          </li>
-        ))}
+        {shown.map((c) => {
+          const st = (c.status || '').toLowerCase();
+          const when = c.completedAt ?? c.createdAt;
+          return (
+            <li key={String(c.id)} className="cmd-row">
+              <span className="cmd-main">
+                <span className="cmd-name">{cmdLabel(c.type)}</span>
+                {c.detail && <CommandDetail text={c.detail} />}
+              </span>
+              <span className="cmd-time">{when ? fmtRelative(when) : ''}</span>
+              <span className={`cmd-status st-${st}`}>{stLabel(c.status)}</span>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -220,9 +255,9 @@ const DETAIL_LIMIT = 160;
 
 function CommandDetail({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
-  if (text.length <= DETAIL_LIMIT) return <span className="t-detail">{text}</span>;
+  if (text.length <= DETAIL_LIMIT) return <span className="cmd-detail">{text}</span>;
   return (
-    <span className={`t-detail ${open ? 'open' : 'clamped'}`}>
+    <span className={`cmd-detail ${open ? 'open' : 'clamped'}`}>
       {open ? text : `${text.slice(0, DETAIL_LIMIT)}…`}
       <button type="button" className="t-more" onClick={() => setOpen((v) => !v)}>
         {open ? 'show less' : 'show more'}

@@ -67,7 +67,7 @@ export function KioskEnterModal({
   const toast = useToast();
   const [source, setSource] = useState<Source>('device');
   const [query, setQuery] = useState('');
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useState(true);
   const [mode, setMode] = useState<Mode>('launcher');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [exitMode, setExitMode] = useState<'gesture' | 'visible' | 'remote'>('gesture');
@@ -92,7 +92,12 @@ export function KioskEnterModal({
   useEffect(() => {
     const ac = new AbortController();
     abortRef.current = ac;
-    return () => ac.abort();
+    // El fondo no se scrollea mientras el drawer está abierto.
+    document.body.classList.add('no-scroll');
+    return () => {
+      ac.abort();
+      document.body.classList.remove('no-scroll');
+    };
   }, []);
 
   useEffect(() => {
@@ -233,7 +238,7 @@ export function KioskEnterModal({
           <input className="kiosk-search" placeholder="Buscar apps…" value={query} onChange={(e) => setQuery(e.target.value)} />
           {source === 'device' && (
             <label className="kiosk-toggle">
-              <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Mostrar todas (incl. sistema)
+              <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Incluir apps del sistema
             </label>
           )}
           {source === 'device' && apps && (

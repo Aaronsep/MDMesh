@@ -62,7 +62,7 @@ export function DevicesPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const { devices, total, configurations, loading, error, reload } = useDevices();
-  const [view, setView] = useState<View>('grid');
+  const [view, setView] = useState<View>('list');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [config, setConfig] = useState('all');
   const [android, setAndroid] = useState('all');
@@ -170,7 +170,7 @@ export function DevicesPage() {
     try {
       await bulkSetConfiguration([...selected], Number(target));
       const name = allConfigs.find((c) => c.id === Number(target))?.name ?? 'configuration';
-      toast.push('ok', 'Configuración cambiada', `${selected.size} device(s) → ${name}.`);
+      toast.push('ok', 'Configuración cambiada', `${selected.size} equipo(s) → ${name}.`);
       setMoveOpen(false);
       setTarget('');
       clearSel();
@@ -186,7 +186,7 @@ export function DevicesPage() {
     setBusy(true);
     try {
       await deleteDevicesBulk([...selected]);
-      toast.push('ok', 'Equipos eliminados', `${selected.size} device(s) removed.`);
+      toast.push('ok', 'Equipos eliminados', `${selected.size} equipo(s) eliminados.`);
       setDelOpen(false);
       clearSel();
       await reload();
@@ -198,11 +198,11 @@ export function DevicesPage() {
   }
 
   return (
-    <AppShell title="Devices">
+    <AppShell title="Equipos">
       <div className="dv-head">
         <h1>Equipos</h1>
         <span className="dv-count">
-          {total > devices.length ? `${devices.length} of ${total}` : devices.length} total · {onlineCount} online
+          {total > devices.length ? `${devices.length} de ${total}` : devices.length} en total · {onlineCount} en línea
         </span>
         <div className="dv-spacer" />
         <div className="dv-search">
@@ -223,19 +223,19 @@ export function DevicesPage() {
           </button>
         </div>
         <button className="btn btn-dark" onClick={() => navigate('/enroll')}>
-          Enroll device
+          Dar de alta
         </button>
       </div>
 
       <div className="filters">
         <button className={`filter-chip ${status === 'all' ? 'on' : ''}`} onClick={() => setStatus('all')}>
-          All <b>{devices.length}</b>
+          Todos <b>{devices.length}</b>
         </button>
         <button className={`filter-chip ${status === 'online' ? 'on' : ''}`} onClick={() => setStatus('online')}>
-          Online <b>{onlineCount}</b>
+          En línea <b>{onlineCount}</b>
         </button>
         <button className={`filter-chip ${status === 'offline' ? 'on' : ''}`} onClick={() => setStatus('offline')}>
-          Offline <b>{devices.length - onlineCount}</b>
+          Desconectados <b>{devices.length - onlineCount}</b>
         </button>
         {dupTotal > 0 && (
           <button
@@ -243,18 +243,18 @@ export function DevicesPage() {
             onClick={() => setDupOnly((v) => !v)}
             title="Devices that share a hardware id with another row — likely the same physical device enrolled more than once"
           >
-            ⚠ Duplicates <b>{dupTotal}</b>
+            ⚠ Duplicados <b>{dupTotal}</b>
           </button>
         )}
         <span className="filter-div" />
         <select className="sel" value={config} onChange={(e) => setConfig(e.target.value)} aria-label="Filter by configuration">
-          <option value="all">Config: All</option>
+          <option value="all">Config: todas</option>
           {configOptions.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
         <select className="sel" value={android} onChange={(e) => setAndroid(e.target.value)} aria-label="Filter by Android version">
-          <option value="all">Android: All</option>
+          <option value="all">Android: todos</option>
           {androidOptions.map((a) => (
             <option key={a} value={a}>Android {a}</option>
           ))}
@@ -263,24 +263,24 @@ export function DevicesPage() {
 
       {selected.size > 0 && (
         <div className="bulk-bar">
-          <span className="bulk-count">{selected.size} selected</span>
+          <span className="bulk-count">{selected.size} seleccionados</span>
           <button className="btn btn-sm" onClick={() => setActionsOpen(true)}>
-            Actions
+            Acciones
           </button>
           <button className="btn btn-sm" onClick={() => setMoveOpen(true)}>
-            Change configuration
+            Cambiar configuración
           </button>
           <button className="btn btn-sm btn-danger" onClick={() => setDelOpen(true)}>
-            Delete
+            Eliminar
           </button>
           <div style={{ flex: 1 }} />
           {selected.size < filtered.length && (
             <button className="btn btn-sm btn-ghost" onClick={selectAllFiltered}>
-              Select all {filtered.length}
+              Seleccionar {filtered.length}
             </button>
           )}
           <button className="btn btn-sm btn-ghost" onClick={clearSel}>
-            Clear
+            Limpiar
           </button>
         </div>
       )}
@@ -290,14 +290,14 @@ export function DevicesPage() {
       {loading ? (
         <div className="panel">
           <div className="empty">
-            <span className="spin" /> Loading devices…
+            <span className="spin" /> Cargando equipos…
           </div>
         </div>
       ) : filtered.length === 0 ? (
         <div className="panel">
           <div className="empty">
             <span className="label">Sin equipos</span>
-            {devices.length === 0 ? 'No devices are enrolled yet.' : 'No devices match these filters.'}
+            {devices.length === 0 ? 'Aún no hay equipos dados de alta.' : 'Ningún equipo coincide con los filtros.'}
           </div>
         </div>
       ) : (
@@ -314,7 +314,7 @@ export function DevicesPage() {
               aria-label="Select all devices"
             />
             <span onClick={toggleAll} style={{ cursor: 'pointer' }}>
-              {allFilteredSelected ? 'Limpiar selección' : 'Seleccionar todo'} · {filtered.length} device
+              {allFilteredSelected ? 'Limpiar selección' : 'Seleccionar todo'} · {filtered.length} equipo
               {filtered.length === 1 ? '' : 's'}
             </span>
           </div>
@@ -367,7 +367,7 @@ export function DevicesPage() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Cambiar configuración</h3>
             <p className="muted" style={{ marginTop: 2 }}>
-              Move {selected.size} device{selected.size === 1 ? '' : 's'} to a configuration.
+              Mover {selected.size} equipo{selected.size === 1 ? '' : 's'} a una configuración.
             </p>
             <label className="field">
               <span>Configuración</span>
@@ -399,7 +399,7 @@ export function DevicesPage() {
             <div className="modal-actions">
               <button className="btn" onClick={() => setDelOpen(false)} disabled={busy}>Cancelar</button>
               <button className="btn btn-danger" disabled={busy} onClick={() => void applyDelete()}>
-                {busy ? 'Deleting…' : `Delete ${selected.size}`}
+                {busy ? 'Eliminando…' : `Eliminar ${selected.size}`}
               </button>
             </div>
           </div>
@@ -540,6 +540,9 @@ function DeviceRow({
         <span className="lk">Visto</span>
         <span className="lv">{fmtRelative(d.lastUpdate)}</span>
       </div>
+      <span className="chev" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 6l6 6-6 6" /></svg>
+      </span>
     </div>
   );
 }
