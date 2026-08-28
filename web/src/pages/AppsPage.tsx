@@ -24,7 +24,7 @@ interface Source {
 }
 
 const SOURCES: Source[] = [
-  { id: 'library', label: 'Biblioteca', enabled: true, tip: 'Apps ya subidas a este servidor MDMesh.' },
+  { id: 'library', label: 'Biblioteca', enabled: true, tip: 'Apps ya subidas a este servidor RENO MDM.' },
   { id: 'custom', label: 'APK propio', enabled: true, tip: 'Despliega cualquier APK por archivo o URL — incluye descargas de APKMirror / APKPure.' },
   { id: 'fdroid', label: 'F-Droid', enabled: true, tip: 'Busca en el catálogo open-source de F-Droid y despliega directo desde f-droid.org.' },
   { id: 'play', label: 'Play Store', enabled: false, tip: 'Descarga con una cuenta de Google (tipo Aurora). Aún no está listo.' },

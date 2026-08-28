@@ -163,7 +163,7 @@ export function SettingsPage() {
           </div>
           <div className="set-row">
             <span className="k">Versión de la consola</span>
-            <span className="v mono">MDMesh {APP_VERSION}</span>
+            <span className="v mono">RENO MDM {APP_VERSION}</span>
           </div>
         </section>
 

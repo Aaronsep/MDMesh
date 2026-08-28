@@ -1,5 +1,5 @@
 /* ============================================================================
-   MDMesh — "Daylight Pro" design system
+   RENO MDM — línea de diseño BackOffice (Poppins · navy Reno)
    Light, restrained, professional. Near-monochrome surfaces; colour is
    reserved for device status. Sans for UI, Mono for technical values.
    Tokens: 8px spacing base, radii 8/12/16/pill, status green/offline/warn/alert.
@@ -7,18 +7,18 @@
 
 :root {
   /* surfaces */
-  --app: #f6f7f9;
+  --app: #fafafa;
   --surface: #ffffff;
-  --surface-2: #f1f2f5;
-  --border: #e7e9ee;
-  --border-hover: #d6dae1;
-  --line: #e7e9ee;
+  --surface-2: #f2f2f2;
+  --border: #e5e5e5;
+  --border-hover: #d4d4d4;
+  --line: #e5e5e5;
   --line-soft: #eef0f3;
   --hairline: #f4f5f7;
 
   /* ink + text */
-  --ink: #15181d; /* near-black: primary buttons, active, accents */
-  --text: #1b2230;
+  --ink: #071281; /* Reno navy: primary buttons, active, accents */
+  --text: #232733;
   --text-2: #384152;
   --secondary: #586073;
   --muted: #6b7686;
@@ -34,32 +34,32 @@
   /* legacy aliases so older page classes resolve to the light palette */
   --panel: #ffffff;
   --panel-2: #f1f2f5;
-  --signal: #15181d;
+  --signal: #071281;
   --signal-ink: #ffffff;
-  --signal-dim: #e7e9ee;
+  --signal-dim: #dfe2f5;
   --ok: #1aa766;
   --idle: #b6bdc7;
 
   /* radii */
-  --radius-sm: 8px;
-  --radius: 12px;
-  --radius-lg: 16px;
+  --radius-sm: 7px;
+  --radius: 10px;
+  --radius-lg: 14px;
   --radius-pill: 999px;
   --radius-chip: 999px;
 
   /* derived/contrast tokens (flip in dark) */
   --on-ink: #ffffff;
-  --ink-hover: #23272f;
+  --ink-hover: #0a1596;
   --danger-soft-bg: #fbe9e9;
   --danger-soft-border: #f0d4d4;
   --danger-soft-border-hover: #e9bcbc;
-  --ring: rgba(21, 24, 29, 0.08);
+  --ring: rgba(7, 18, 129, 0.16);
   --backdrop: rgba(20, 30, 55, 0.28);
 
   --shadow-card: 0 8px 22px -16px rgba(20, 30, 55, 0.3);
   --shadow-pop: 0 12px 32px -12px rgba(20, 30, 55, 0.28);
 
-  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto,
+  --font-sans: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto,
     sans-serif;
   --font-cond: var(--font-sans);
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas,
@@ -76,16 +76,16 @@
    reserved for status. Applied via [data-theme="dark"] on <html>.
    ------------------------------------------------------------------------- */
 [data-theme='dark'] {
-  --app: #0f1115;
-  --surface: #161922;
-  --surface-2: #1e222c;
+  --app: #13151c;
+  --surface: #1a1d26;
+  --surface-2: #23262f;
   --border: #272c37;
   --border-hover: #39404e;
   --line: #272c37;
   --line-soft: #21262f;
   --hairline: #1b1f28;
 
-  --ink: #f2f4f8;
+  --ink: #283cb5;
   --text: #e7ebf1;
   --text-2: #c4ccd7;
   --secondary: #9aa3b0;
@@ -100,18 +100,18 @@
 
   --panel: #161922;
   --panel-2: #1e222c;
-  --signal: #f2f4f8;
-  --signal-ink: #15181d;
+  --signal: #283cb5;
+  --signal-ink: #ffffff;
   --signal-dim: #2a313d;
   --ok: #2bb979;
   --idle: #4a5260;
 
-  --on-ink: #15181d;
-  --ink-hover: #dfe3ea;
+  --on-ink: #ffffff;
+  --ink-hover: #3a4fd0;
   --danger-soft-bg: #2a1b1e;
   --danger-soft-border: #45292d;
   --danger-soft-border-hover: #5a3338;
-  --ring: rgba(242, 244, 248, 0.14);
+  --ring: rgba(40, 60, 181, 0.42);
   --backdrop: rgba(0, 0, 0, 0.6);
   --shadow-card: 0 8px 22px -16px rgba(0, 0, 0, 0.7);
   --shadow-pop: 0 14px 34px -14px rgba(0, 0, 0, 0.7);
@@ -2724,3 +2724,17 @@ a {
 .rollout-device { display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:8px; font-size:13px; }
 .rollout-device:hover { background:var(--panel-2); }
 .rollout-device .muted { color:var(--muted); }
+
+
+/* ── Marca Reno (línea de diseño del BackOffice) ─────────────────────────── */
+.reno-logo {
+  height: 30px;
+  width: auto;
+  display: block;
+  user-select: none;
+}
+[data-theme='dark'] .reno-logo { filter: brightness(0) invert(1); }
+.sidebar-brand { display: flex; align-items: center; padding: 4px 2px; }
+
+.reno-logo-lg { height: 40px; margin: 0 auto 20px; }
+.login-card .login-head { text-align: center; }

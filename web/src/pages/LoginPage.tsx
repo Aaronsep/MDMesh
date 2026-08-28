@@ -40,8 +40,8 @@ export function LoginPage() {
       <form className="login-card route-enter" onSubmit={onSubmit}>
         <Wordmark />
         <div className="login-head">
-          <h1>Entrar a MDMesh</h1>
-          <p>Consola de control de la flotilla.</p>
+          <h1>Bienvenido de vuelta</h1>
+          <p>Ingresa tus credenciales para acceder a la consola.</p>
         </div>
 
         <label className="field">

@@ -393,8 +393,8 @@ export function DevicesPage() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Eliminar equipos</h3>
             <p className="muted" style={{ marginTop: 2 }}>
-              Permanently remove {selected.size} device{selected.size === 1 ? '' : 's'} from MDMesh?
-              The device(s) will re-appear if they check in again.
+              ¿Eliminar de forma permanente {selected.size} equipo{selected.size === 1 ? '' : 's'} de RENO MDM?
+              El equipo reaparecerá si vuelve a reportarse.
             </p>
             <div className="modal-actions">
               <button className="btn" onClick={() => setDelOpen(false)} disabled={busy}>Cancelar</button>

@@ -15,7 +15,7 @@ const SECURITY_VALUES: WifiSecurity[] = ['WPA', 'WEP', 'NONE', 'EAP'];
 const STEPS = [
   { title: 'Parte de un equipo reseteado de fábrica', sub: 'En la primera pantalla de bienvenida, aún no inicies sesión.' },
   { title: 'Toca la pantalla 6 veces', sub: 'Se abre el lector de QR. Conéctate al Wi-Fi si lo pide.' },
-  { title: 'Escanea este código', sub: 'Android descarga el agente MDMesh y lo pone como Device Owner.' },
+  { title: 'Escanea este código', sub: 'Android descarga el agente RENO MDM y lo pone como Device Owner.' },
   { title: 'Espera el alta', sub: 'El equipo aparece en Equipos tras su primer check-in.' },
 ];
 
