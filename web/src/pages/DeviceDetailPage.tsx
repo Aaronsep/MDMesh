@@ -193,9 +193,9 @@ export function DeviceDetailPage() {
     try {
       await forceSync(device.number);
       void getDeviceState(device.number).then(setDs).catch(() => undefined);
-      toast.push('ok', 'Sync requested', '');
+      toast.push('ok', 'Sincronización pedida', '');
     } catch (e) {
-      toast.push('err', 'Sync failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'Falló la sincronización', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -210,9 +210,9 @@ export function DeviceDetailPage() {
         requiresCapability: 'device.lock',
       });
       await forceSync(device.number).catch(() => undefined);
-      toast.push('ok', 'Lock queued', '');
+      toast.push('ok', 'Bloqueo encolado', '');
     } catch (e) {
-      toast.push('err', 'Lock failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'Falló el bloqueo', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -225,9 +225,9 @@ export function DeviceDetailPage() {
     setBusy(true);
     try {
       const res = await syncConfigApps(device.number);
-      toast.push('ok', 'Config apps queued', `${res.queued} install command${res.queued === 1 ? '' : 's'} queued.`);
+      toast.push('ok', 'Apps de config encoladas', `${res.queued} instalación${res.queued === 1 ? '' : 'es'} en cola.`);
     } catch (e) {
-      toast.push('err', 'Sync apps failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'Falló sincronizar apps', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -261,18 +261,18 @@ export function DeviceDetailPage() {
   // Online/offline is recency of last check-in — NOT statusCode (which is config compliance and
   // stays green for a device that was factory-reset and stopped reporting).
   const online = isOnlineByRecency(device.lastUpdate);
-  const statusLabel = online ? 'Online' : 'Offline';
+  const statusLabel = online ? 'En línea' : 'Desconectado';
 
   const statusRows: Row[] = [
-    { k: 'Battery', v: ds ? (ds.battery < 0 ? '—' : `${ds.battery}% · ${ds.charging ? 'charging' : 'not charging'}`) : '—' },
-    { k: 'Screen', v: ds ? (ds.locked ? 'Locked' : 'Unlocked') : '—' },
-    { k: 'Kiosk', v: ds ? (ds.kioskActive ? 'On' : 'Off') : '—' },
-    { k: 'Connectivity', v: powerLabel(ds?.powerMode) },
+    { k: 'Batería', v: ds ? (ds.battery < 0 ? '—' : `${ds.battery}% · ${ds.charging ? 'cargando' : 'sin cargar'}`) : '—' },
+    { k: 'Pantalla', v: ds ? (ds.locked ? 'Bloqueada' : 'Desbloqueada') : '—' },
+    { k: 'Kiosko', v: ds ? (ds.kioskActive ? 'Activo' : 'Inactivo') : '—' },
+    { k: 'Conectividad', v: powerLabel(ds?.powerMode) },
   ];
   const hardwareRows: Row[] = [
     { k: 'Android', v: orDash(teleStr(hw.osRelease) ?? ds?.androidRelease ?? device.androidVersion) },
-    { k: 'Storage', v: orDash(teleStr(hw.storage) ?? teleStr(hw.storageFree)) },
-    { k: 'Serial', v: orDash(teleStr(idn.serial) ?? device.serial), mono: true },
+    { k: 'Almacenamiento', v: orDash(teleStr(hw.storage) ?? teleStr(hw.storageFree)) },
+    { k: 'Serie', v: orDash(teleStr(idn.serial) ?? device.serial), mono: true },
     { k: 'IMEI', v: orDash(teleStr(idn.imei) ?? device.imei), mono: true },
   ];
   const networkRows: Row[] = [
@@ -342,13 +342,13 @@ export function DeviceDetailPage() {
 
           <div className="actions">
             <button className="pri" disabled={busy} onClick={() => void syncNow()}>
-              Sync now
+              Sincronizar
             </button>
             <button className="sec" disabled={busy} onClick={() => void lock()}>
-              Lock
+              Bloquear
             </button>
             <button className="sec" disabled={busy} onClick={() => void installConfigApps()}>
-              Install config apps
+              Instalar apps de config
             </button>
           </div>
 

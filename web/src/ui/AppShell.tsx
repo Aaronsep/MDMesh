@@ -24,12 +24,12 @@ interface NavEntry {
 }
 
 const NAV: NavEntry[] = [
-  { to: '/dashboard', label: 'Overview', Icon: IconDashboard },
-  { to: '/devices', label: 'Devices', Icon: IconDevices },
-  { to: '/configs', label: 'Configurations', Icon: IconConfig },
+  { to: '/dashboard', label: 'Resumen', Icon: IconDashboard },
+  { to: '/devices', label: 'Equipos', Icon: IconDevices },
+  { to: '/configs', label: 'Configuraciones', Icon: IconConfig },
   { to: '/apps', label: 'Apps', Icon: IconApps },
-  { to: '/enroll', label: 'Enroll', Icon: IconEnroll },
-  { to: '/settings', label: 'Settings', Icon: IconSettings },
+  { to: '/enroll', label: 'Alta', Icon: IconEnroll },
+  { to: '/settings', label: 'Ajustes', Icon: IconSettings },
 ];
 
 export function AppShell({
@@ -84,14 +84,14 @@ export function AppShell({
           <button
             className="btn btn-ghost"
             onClick={toggleTheme}
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            aria-label={`Cambiar a tema ${theme === 'dark' ? 'claro' : 'oscuro'}`}
           >
             {theme === 'dark' ? <IconSun className="ico" /> : <IconMoon className="ico" />}
-            <span style={{ marginLeft: 8 }}>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+            <span style={{ marginLeft: 8 }}>{theme === 'dark' ? 'Claro' : 'Oscuro'}</span>
           </button>
           <button className="btn btn-ghost" onClick={() => void signOut()}>
             <IconSignOut className="ico" />
-            <span style={{ marginLeft: 8 }}>Sign out</span>
+            <span style={{ marginLeft: 8 }}>Salir</span>
           </button>
         </div>
       </aside>
@@ -101,7 +101,7 @@ export function AppShell({
           <button
             className="btn btn-ghost menu-btn"
             onClick={() => setOpen((v) => !v)}
-            aria-label="Toggle navigation"
+            aria-label="Alternar navegación"
           >
             <IconMenu />
           </button>

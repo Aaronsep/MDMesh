@@ -170,13 +170,13 @@ export function DevicesPage() {
     try {
       await bulkSetConfiguration([...selected], Number(target));
       const name = allConfigs.find((c) => c.id === Number(target))?.name ?? 'configuration';
-      toast.push('ok', 'Configuration changed', `${selected.size} device(s) → ${name}.`);
+      toast.push('ok', 'Configuración cambiada', `${selected.size} device(s) → ${name}.`);
       setMoveOpen(false);
       setTarget('');
       clearSel();
       await reload();
     } catch (e) {
-      toast.push('err', 'Change failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'Falló el cambio', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -186,12 +186,12 @@ export function DevicesPage() {
     setBusy(true);
     try {
       await deleteDevicesBulk([...selected]);
-      toast.push('ok', 'Devices deleted', `${selected.size} device(s) removed.`);
+      toast.push('ok', 'Equipos eliminados', `${selected.size} device(s) removed.`);
       setDelOpen(false);
       clearSel();
       await reload();
     } catch (e) {
-      toast.push('err', 'Delete failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'Falló eliminar', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -200,7 +200,7 @@ export function DevicesPage() {
   return (
     <AppShell title="Devices">
       <div className="dv-head">
-        <h1>Devices</h1>
+        <h1>Equipos</h1>
         <span className="dv-count">
           {total > devices.length ? `${devices.length} of ${total}` : devices.length} total · {onlineCount} online
         </span>
@@ -209,7 +209,7 @@ export function DevicesPage() {
           <IconSearch />
           <input
             type="search"
-            placeholder="Search devices"
+            placeholder="Buscar equipos"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -296,7 +296,7 @@ export function DevicesPage() {
       ) : filtered.length === 0 ? (
         <div className="panel">
           <div className="empty">
-            <span className="label">No devices</span>
+            <span className="label">Sin equipos</span>
             {devices.length === 0 ? 'No devices are enrolled yet.' : 'No devices match these filters.'}
           </div>
         </div>
@@ -314,7 +314,7 @@ export function DevicesPage() {
               aria-label="Select all devices"
             />
             <span onClick={toggleAll} style={{ cursor: 'pointer' }}>
-              {allFilteredSelected ? 'Clear selection' : 'Select all'} · {filtered.length} device
+              {allFilteredSelected ? 'Limpiar selección' : 'Seleccionar todo'} · {filtered.length} device
               {filtered.length === 1 ? '' : 's'}
             </span>
           </div>
@@ -365,12 +365,12 @@ export function DevicesPage() {
       {moveOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setMoveOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Change configuration</h3>
+            <h3>Cambiar configuración</h3>
             <p className="muted" style={{ marginTop: 2 }}>
               Move {selected.size} device{selected.size === 1 ? '' : 's'} to a configuration.
             </p>
             <label className="field">
-              <span>Configuration</span>
+              <span>Configuración</span>
               <select className="sel" value={target} onChange={(e) => setTarget(e.target.value)} style={{ width: '100%' }}>
                 <option value="">Select a configuration…</option>
                 {allConfigs.map((c) => (
@@ -379,9 +379,9 @@ export function DevicesPage() {
               </select>
             </label>
             <div className="modal-actions">
-              <button className="btn" onClick={() => setMoveOpen(false)} disabled={busy}>Cancel</button>
+              <button className="btn" onClick={() => setMoveOpen(false)} disabled={busy}>Cancelar</button>
               <button className="btn btn-primary" disabled={busy || !target} onClick={() => void applyMove()}>
-                {busy ? 'Moving…' : 'Move'}
+                {busy ? 'Moving…' : 'Mover'}
               </button>
             </div>
           </div>
@@ -391,13 +391,13 @@ export function DevicesPage() {
       {delOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setDelOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Delete devices</h3>
+            <h3>Eliminar equipos</h3>
             <p className="muted" style={{ marginTop: 2 }}>
               Permanently remove {selected.size} device{selected.size === 1 ? '' : 's'} from MDMesh?
               The device(s) will re-appear if they check in again.
             </p>
             <div className="modal-actions">
-              <button className="btn" onClick={() => setDelOpen(false)} disabled={busy}>Cancel</button>
+              <button className="btn" onClick={() => setDelOpen(false)} disabled={busy}>Cancelar</button>
               <button className="btn btn-danger" disabled={busy} onClick={() => void applyDelete()}>
                 {busy ? 'Deleting…' : `Delete ${selected.size}`}
               </button>
@@ -481,7 +481,7 @@ function DeviceCard({
           <div className="v">{config}</div>
         </div>
         <div>
-          <div className="k">Seen</div>
+          <div className="k">Visto</div>
           <div className="v">{fmtRelative(d.lastUpdate)}</div>
         </div>
       </div>
@@ -537,7 +537,7 @@ function DeviceRow({
         <span className="lv">{config}</span>
       </div>
       <div className="lc">
-        <span className="lk">Seen</span>
+        <span className="lk">Visto</span>
         <span className="lv">{fmtRelative(d.lastUpdate)}</span>
       </div>
     </div>
